@@ -1,2 +1,1 @@
-# docx-html-render
-Service for rendering documents .doc .docx in the HTML browser
+### Usage1. Build the Docker image:   ```bash   docker-compose build   ```2. Run the Flask application:   ```bash   docker-compose up   ```   The application will be accessible at `http://localhost:5000` on your host machine.### API- **`app.py`**: Sets up the Flask app, defines the route for file upload, and handles the conversion from `.docx` to HTML.- **`templates/upload.html`**: Provides a simple form for uploading files.- **`templates/result.html`**: Displays the HTML output after conversion.### Doc converting
