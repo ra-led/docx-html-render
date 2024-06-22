@@ -31,7 +31,7 @@ ALIGNMENT = {
 
 
 def get_numbering_depth(text):
-    numbering_pattern = r'^\d\.'
+    numbering_pattern = r'^\d+\.'
     
     depth = 0
     while 1:
@@ -41,7 +41,7 @@ def get_numbering_depth(text):
         text = re.sub(numbering_pattern, '', text)
     
     # Last chance num without dot
-    numbering_pattern = r'^\d'
+    numbering_pattern = r'^\d+'
     if re.findall(numbering_pattern, text.strip()):
         depth += 1
     
