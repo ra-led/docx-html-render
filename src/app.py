@@ -120,9 +120,9 @@ def docx_to_html(docx_path):
                 html_content.append(
                     ''.join([
                         '<span style="{bold}">{text}</span>'.format(
-                            bold="font-weight: bold;" if run.bold else "",
+                            bold="font-weight: bold;",
                             text=run.text
-                        )
+                        ) if run.bold else run.text
                         for run in content.runs
                     ])
                 )
