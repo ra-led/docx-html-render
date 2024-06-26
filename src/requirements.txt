@@ -1,3 +1,6 @@
 Flask==2.0.1
 werkzeug==2.0.3python-docx==1.1.2
 xmltodict==0.13.0
+fastapi==0.111.0
+aio-pika==9.4.1
+python-multipart==0.0.9
