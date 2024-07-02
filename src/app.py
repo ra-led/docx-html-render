@@ -29,6 +29,18 @@ ALIGNMENT = {
     'CENTER': 'center'
 }
 
+DEFAULT_NUM_LEVELS = [
+    {'@w:ilvl': '0', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1'}},
+    {'@w:ilvl': '1', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2'}},
+    {'@w:ilvl': '2', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3'}},
+    {'@w:ilvl': '3', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4'}},
+    {'@w:ilvl': '4', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5'}},
+    {'@w:ilvl': '5', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6'}},
+    {'@w:ilvl': '6', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7'}},
+    {'@w:ilvl': '7', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7.%8'}},
+    {'@w:ilvl': '8', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7.%8.%9'}}
+]
+
 
 class DocHandler:
     def __init__(self, doc):
@@ -37,6 +49,14 @@ class DocHandler:
             doc.part.numbering_part.element.xml,
             process_namespaces=False
         )
+        self.styles_xml = xmltodict.parse(
+            doc.part.styles.element.xml,
+            process_namespaces=False
+        )
+        self.styles = {
+            x['@w:styleId']: x
+            for x in self.styles_xml['w:styles']['w:style']
+        }
         self.nums_abstarct = {
             x['w:abstractNumId']['@w:val']: x['@w:numId']
             for x in self.num_xml['w:numbering']['w:num']
@@ -45,6 +65,13 @@ class DocHandler:
             self.nums_abstarct[x['@w:abstractNumId']]: x['w:lvl']
             for x in self.num_xml['w:numbering']['w:abstractNum']
         }
+        self.style_nums = {}
+        self.style_levels = {}
+        for numId, levels in self.nums_levels.items():
+            for lvl in levels:
+                if 'w:pStyle' in lvl:
+                    self.style_nums[lvl['w:pStyle']['@w:val']] = numId
+                    self.style_levels[lvl['w:pStyle']['@w:val']] = lvl
         self.increment = {
             x['@w:numId']: {
                 i: 0
@@ -67,10 +94,51 @@ class DocHandler:
         except:
             return '', 0, None
         level = int(p_xml['w:p']['w:pPr']['w:numPr']['w:ilvl']['@w:val'])
+        if num_id not in self.nums_levels:
+            self.nums_levels[num_id] = DEFAULT_NUM_LEVELS
+            self.increment[num_id] = {lvl_i: 0 for lvl_i in range(len(DEFAULT_NUM_LEVELS))}
         # Update inc
         self.increment[num_id][level] += 1
-        for lvl_next in range(level + 1, len(self.increment[num_id])):
-            self.increment[num_id][lvl_next] = 0
+        for lvl_i in self.increment[num_id]:
+            if lvl_i > level:
+                self.increment[num_id][lvl_i] = 0
+        abstarct_levels = self.nums_levels[num_id]
+        num_prefix = ''
+        for lvl_a, lvl_i in zip(abstarct_levels, self.increment[num_id]):
+            if lvl_i > level:
+                break
+            try:
+                num_start = int(lvl_a['w:start']['@w:val'])
+            except KeyError:
+                num_start = 1
+            num = self.increment[num_id][lvl_i] + num_start - 1
+            num = max(num, num_start)
+            num_prefix += f'{num}.'
+        
+        main_style = []
+        for lvl in range(1, level + 2):
+            main_style.append(f'%{lvl}')
+        main_style = '.'.join(main_style)
+        if abstarct_levels[level]['w:lvlText']['@w:val'] != main_style:
+            num_id = 'sub'
+        return num_prefix, level + 1, num_id
+    
+    def numrize_by_style_id(self, par):
+        style_id = par.style.style_id
+        base_id = par.style.base_style.style_id if par.style.base_style else None
+        if style_id in self.style_levels:
+            level = int(self.style_levels[style_id]['@w:ilvl'])
+            num_id = self.style_nums[style_id]
+        elif base_id in self.style_levels:
+            level = int(self.style_levels[base_id]['@w:ilvl'])
+            num_id = self.style_nums[base_id]
+        else:
+            return '', 0, None
+        # Update inc
+        self.increment[num_id][level] += 1
+        for lvl_i in self.increment[num_id]:
+            if lvl_i > level:
+                self.increment[num_id][lvl_i] = 0
         abstarct_levels = self.nums_levels[num_id]
         num_prefix = ''
         for lvl_a, lvl_i in zip(abstarct_levels, self.increment[num_id]):
@@ -120,11 +188,14 @@ class DocHandler:
             match = re.search(r'Heading (\d+)', style)
             if match:
                 depth = int(match.group(1))
+            elif style == 'Title':
+                depth = 1
         return par.text, depth, 'H'
     
     def numerize(self, par):
         numerize_prioritet = [
             self.numrize_by_meta,
+            self.numrize_by_style_id,
             self.numerize_by_text,
             self.numerize_by_style
         ]
@@ -147,18 +218,22 @@ class DocHandler:
                 self.depth = depth
                 self.source = source
                 self.prefix = num_prefix
-                # style = f'Heading {min(7, depth)}'
+                style = f'Heading {min(7, depth)}'
             else:
                 depth = self.depth + depth
-                # style = 'List Paragraph'
-            style = f'Heading {min(7, depth)}'
+                style = 'List Paragraph'
+            # style = f'Heading {min(7, depth)}'
         try:
             tag = STYLE_TAGS[style]
         except KeyError:
             tag = 'p'
         css = paragraph_style(par)
         if tag.startswith('h'):  # Check if it's a heading
-            text = num_prefix + f' [{source}] ' + par.text
+            # text = num_prefix + f' [{source}] ' + par.text
+            if source not in ('H', 'N'):
+                text = num_prefix + par.text
+            else:
+                text = par.text
             html_links.append((f'<a href="#{anchor}">{make_toc_header(text, depth)}</a><br>', source))
             html_paragraph.append(f'<div{css}><{tag} id="{anchor}">{text}</{tag}></div>')
         else:
@@ -212,6 +287,7 @@ class DocHandler:
                         'row_bottom_space': i + rowspan,
                         'col_right_space': j + colspan
                     })
+        # Find col space
         try:
             left_space = max(d['col_left_space'] for d in all_text_cells)
             frequent_right_space = max(
