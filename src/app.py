@@ -81,7 +81,7 @@ class DocHandler:
         }
         self.depth = 0
         self.source = None
-        self.prefix = '0'
+        self.depth_anchor = {}
         self.tables_cnt = 0
         self.width = int(self.xml['w:document']['w:body']['w:sectPr']['w:pgSz']['@w:w'])
         self.last_par = None
@@ -174,7 +174,7 @@ class DocHandler:
             num_prefix += match[0]
         
         # Last chance num without dot
-        numbering_pattern = r'^\d+'
+        numbering_pattern = r'^\d+\s'
         match = re.findall(numbering_pattern, text.strip())
         if match:
             depth += 1
@@ -205,6 +205,13 @@ class DocHandler:
                 return num_prefix, depth, source
         return '', 0, None
     
+    def get_depth_classes(self):
+        aa = []
+        for k, v in self.depth_anchor.items():
+            if k <= self.depth:
+                aa.append(v)
+        return " ".join(aa)
+    
     def process_paragraph(self, par):
         html_paragraph = []
         html_links = []
@@ -212,22 +219,23 @@ class DocHandler:
         num_prefix, depth, source = self.numerize(par)
         
         if depth:
-            anchor = str(uuid.uuid4())
+            anchor = 'a' + str(uuid.uuid4())
             if source != 'sub':
                 # anchor = str(uuid.uuid4())
                 self.depth = depth
                 self.source = source
-                self.prefix = num_prefix
+                self.depth_anchor[depth] = anchor
                 style = f'Heading {min(7, depth)}'
             else:
-                depth = self.depth + depth
                 style = 'List Paragraph'
-            # style = f'Heading {min(7, depth)}'
+                # depth = self.depth + depth
+                # style = f'Heading {min(7, depth)}'
         try:
             tag = STYLE_TAGS[style]
         except KeyError:
             tag = 'p'
         css = paragraph_style(par)
+        classes = self.get_depth_classes()
         if tag.startswith('h'):  # Check if it's a heading
             # text = num_prefix + f' [{source}] ' + par.text
             if source not in ('H', 'N'):
@@ -235,9 +243,9 @@ class DocHandler:
             else:
                 text = par.text
             html_links.append((f'<a href="#{anchor}">{make_toc_header(text, depth)}</a><br>', source))
-            html_paragraph.append(f'<div{css}><{tag} id="{anchor}">{text}</{tag}></div>')
+            html_paragraph.append(f'<div{css} class="{classes}"><{tag} id="{anchor}">{text}</{tag}></div>')
         else:
-            html_paragraph.append(f'<div{css}><{tag}>')
+            html_paragraph.append(f'<div{css} class="{classes}"><{tag}>')
             html_paragraph.append(
                 ''.join([
                     '<span style="{bold}">{text}</span>'.format(
@@ -380,10 +388,14 @@ class DocHandler:
                         colspan += 1
                     else:
                         break
+                classes = ""
+                if not text_cell:
+                    classes = self.get_depth_classes()
                 if ignore:
                     text = 'IGNORE'
+                    classes = 'ignore'
                 if rowspan > 1 or colspan > 1:
-                    html_table += f'<td rowspan="{rowspan}" colspan="{colspan}"{css}>{text}</td>'
+                    html_table += f'<td class="{classes}" rowspan="{rowspan}" colspan="{colspan}"{css}>{text}</td>'
                     merged.add(cell._element)
                 else:
                     html_table += f'<td{css}>{text}</td>'
