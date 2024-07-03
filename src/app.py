@@ -24,7 +24,5 @@ def create_app():
                 return render_template('result.html', html_content=html, toc_links=toc)
         return render_template('upload.html')
 
-    if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        os.makedirs(app.config['UPLOAD_FOLDER'])
-
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     return app
