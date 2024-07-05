@@ -36,6 +36,7 @@ def docx_to_html(docx_path, update_progress):
     
     return '\n'.join(html_content), '\n'.join([link for link, src in toc_links])
 
+
 def create_app():
     app = Flask(__name__)
     app.config['UPLOAD_FOLDER'] = 'uploads/'
@@ -53,14 +54,9 @@ def create_app():
             if file:
                 temp_file = tempfile.NamedTemporaryFile(delete=False)
                 file.save(temp_file.name)
-                session['progress'] = 0
-                
-                def update_progress(progress):
-                    session['progress'] = progress
-                
-                threading.Thread(target=lambda: docx_to_html(temp_file.name, update_progress)).start()
+                html, toc = docx_to_html(temp_file.name)
                 os.unlink(temp_file.name)
-                return redirect('/progress')
+                return render_template('result.html', html_content=html, toc_links=toc)
         return render_template('upload.html')
 
     @app.route('/progress')
