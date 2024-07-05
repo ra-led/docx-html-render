@@ -321,7 +321,6 @@ class DocHandler:
         frame = self.investigate_table(table)
         if frame:
             left_space, right_space, top_space, bottom_space, text_rows = frame
-            print(text_rows)
         else:
             text_rows = []
         anchor = f'table{self.tables_cnt}'
@@ -396,8 +395,6 @@ class DocHandler:
                     # text = 'IGNORE'
                     # classes = 'ignore'
                 if i in text_rows and text_cell:
-                    print(html_table[-40:])
-                    print(text[:40], '...', text[:-40])
                     html_table += '</tr></table>' + text + '<table "class="w3-table w3-hoverable">'
                     if rowspan > 1 or colspan > 1:
                         merged.add(cell._element)

@@ -4,4 +4,4 @@ services:
     build: ./src
     ports:
       - "5000:5000"
-    command: gunicorn -w 4 -b 0.0.0.0:5000 -t 120 "app:create_app()"
+    command: gunicorn -w 4 -b 0.0.0.0:5000 -t 120 "app:app"
