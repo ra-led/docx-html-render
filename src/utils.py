@@ -3,6 +3,7 @@ import re
 import xmltodict
 import uuid
 
+
 STYLE_TAGS = {
     'Title': 'h1',
     'List Paragraph': 'li',
@@ -312,18 +313,24 @@ class DocHandler:
             top_space = 0
         if (len(table.rows) - bottom_space) > self.max_frame_space:
             bottom_space = len(table.rows)
-        return left_space, right_space, top_space, bottom_space
+        text_rows = [list(range(x['row_top_space'], x['row_bottom_space'])) for x in all_text_cells]
+        return left_space, right_space, top_space, bottom_space, sum(text_rows, [])
 
     def process_table(self, table):
         self.tables_cnt += 1
         frame = self.investigate_table(table)
+        if frame:
+            left_space, right_space, top_space, bottom_space, text_rows = frame
+            print(text_rows)
+        else:
+            text_rows = []
         anchor = f'table{self.tables_cnt}'
         table_links = [
-            (
-                f'<a href="#{anchor}">'
-                f'{make_toc_header("", self.depth + 1)}Таблица {self.tables_cnt}'
-                '</a><br>', 'T'
-            )
+            # (
+            #     f'<a href="#{anchor}">'
+            #     f'{make_toc_header("", self.depth + 1)}Таблица {self.tables_cnt}'
+            #     '</a><br>', 'T'
+            # )
         ]
         t_xml = xmltodict.parse(table._element.xml, process_namespaces=False)
         try:
@@ -337,13 +344,13 @@ class DocHandler:
             # table without thresholds - most likley TEXT
             default_borders = {}
         merged = set()
-        html_table = f'<table id="{anchor}" class="w3-table w3-hoverable">'
+        # html_table = f'<table id="{anchor}"class="w3-table w3-hoverable">'
+        html_table = f'<table "class="w3-table w3-hoverable">'
         for i, row in enumerate(table.rows):
             html_table += "<tr>"
             for j, cell in enumerate(row.cells):
                 ignore = False
                 if frame:
-                    left_space, right_space, top_space, bottom_space = frame
                     if i < top_space or ignore:
                         ignore = True
                     if i >= bottom_space or ignore:
@@ -385,13 +392,22 @@ class DocHandler:
                 if not text_cell:
                     classes = self.get_depth_classes()
                 if ignore:
-                    text = 'IGNORE'
-                    classes = 'ignore'
-                if rowspan > 1 or colspan > 1:
-                    html_table += f'<td class="{classes}" rowspan="{rowspan}" colspan="{colspan}"{css}>{text}</td>'
-                    merged.add(cell._element)
+                    continue
+                    # text = 'IGNORE'
+                    # classes = 'ignore'
+                if i in text_rows and text_cell:
+                    print(html_table[-40:])
+                    print(text[:40], '...', text[:-40])
+                    html_table += '</tr></table>' + text + '<table "class="w3-table w3-hoverable">'
+                    if rowspan > 1 or colspan > 1:
+                        merged.add(cell._element)
+                    continue
                 else:
-                    html_table += f'<td{css}>{text}</td>'
+                    if rowspan > 1 or colspan > 1:
+                        html_table += f'<td class="{classes}" rowspan="{rowspan}" colspan="{colspan}"{css}>{text}</td>'
+                        merged.add(cell._element)
+                    else:
+                        html_table += f'<td{css}>{text}</td>'
             html_table += "</tr>"
         html_table += "</table>"
         return html_table, table_links
