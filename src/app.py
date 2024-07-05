@@ -3,9 +3,15 @@ import os
 import tempfile
 from utils import DocHandler
 import docx
+import logging
 
 
-def docx_to_html(docx_path):
+def update_progress(progress):
+    logging.critical(str(progress))
+    session['progress'] = progress
+
+
+def docx_to_html(docx_path, update_progress):
     doc = docx.Document(docx_path)
     handler = DocHandler(doc)
     html_content = []
@@ -48,7 +54,7 @@ def create_app():
             if file:
                 temp_file = tempfile.NamedTemporaryFile(delete=False)
                 file.save(temp_file.name)
-                html, toc = docx_to_html(temp_file.name)
+                html, toc = docx_to_html(temp_file.name, update_progress)
                 os.unlink(temp_file.name)
                 return render_template('result.html', html_content=html, toc_links=toc)
         return render_template('upload.html')
