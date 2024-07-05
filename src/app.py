@@ -5,7 +5,7 @@ from utils import DocHandler
 import docx
 
 
-def docx_to_html(docx_path, update_progress):
+def docx_to_html(docx_path):
     doc = docx.Document(docx_path)
     handler = DocHandler(doc)
     html_content = []
