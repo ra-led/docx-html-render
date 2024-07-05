@@ -3,11 +3,6 @@ import os
 import tempfile
 from utils import DocHandler
 import docx
-import threading
-
-
-def update_progress(progress):
-    session['progress'] = progress
 
 
 def docx_to_html(docx_path, update_progress):
@@ -31,8 +26,7 @@ def docx_to_html(docx_path, update_progress):
             print(type(content), 'missed')
         
         processed_content += 1
-        progress = int((processed_content / total_content) * 100)
-        update_progress(progress)
+        session['progress'] = int((processed_content / total_content) * 100)
     
     return '\n'.join(html_content), '\n'.join([link for link, src in toc_links])
 
