@@ -52,12 +52,16 @@ class DocHandler:
             for x in self.styles_xml['w:styles']['w:style']
         }
         self.nums_abstarct = {
-            x['w:abstractNumId']['@w:val']: x['@w:numId']
+            x['@w:numId']: x['w:abstractNumId']['@w:val']
             for x in self.num_xml['w:numbering']['w:num']
         }
-        self.nums_levels = {
-            self.nums_abstarct[x['@w:abstractNumId']]: x['w:lvl']
+        self.abstarcts = {
+            x['@w:abstractNumId']: x
             for x in self.num_xml['w:numbering']['w:abstractNum']
+        }
+        self.nums_levels = {
+            x['@w:numId']: self.abstarcts[self.nums_abstarct[x['@w:numId']]]['w:lvl']
+            for x in self.num_xml['w:numbering']['w:num']
         }
         self.style_nums = {}
         self.style_levels = {}
@@ -156,7 +160,7 @@ class DocHandler:
     
     def numerize_by_text(self, par):
         depth = 0
-        text = par.text
+        text = par.text.strip()
         num_prefix = ''
         numbering_pattern = r'^\d+\.'
         while 1:
@@ -184,7 +188,7 @@ class DocHandler:
                 depth = int(match.group(1))
             elif style == 'Title':
                 depth = 1
-        return par.text, depth, 'H'
+        return par.text if par.text else '[UNNAMED]', depth, 'H'
     
     def numerize(self, par):
         numerize_prioritet = [
@@ -263,8 +267,12 @@ class DocHandler:
                     continue
                 c_xml = xmltodict.parse(cell._element.xml, process_namespaces=False)
                 # Cell width
-                cell_width = int(c_xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
-                text_cell = (cell_width / self.width) >= 0.8
+                try:
+                    cell_width = int(c_xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
+                    text_cell = (cell_width / self.width) >= 0.8
+                except KeyError:
+                    c_xml['w:tc']['w:tcPr']['w:shd'] # !!! rest of row from other columns
+                    text_cell = False
                 # detect merged cells
                 rowspan = 1
                 colspan = 1
@@ -362,8 +370,12 @@ class DocHandler:
                     continue
                 c_xml = xmltodict.parse(cell._element.xml, process_namespaces=False)
                 # Cell width
-                cell_width = int(c_xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
-                text_cell = (cell_width / self.width) >= 0.8
+                try:
+                    cell_width = int(c_xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
+                    text_cell = (cell_width / self.width) >= 0.8
+                except KeyError:
+                    c_xml['w:tc']['w:tcPr']['w:shd'] # !!! rest of row from other columns
+                    text_cell = False
                 # Cell is text
                 if text_cell:
                     text = ''
