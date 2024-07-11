@@ -7,9 +7,10 @@ from io import BytesIO
 from aio_pika import Message, connect
 
 from app import docx_to_html
-from utils import get_connection
+from utils import get_connection, html_to_json
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 async def main():
     connection = await get_connection()
@@ -26,9 +27,10 @@ async def main():
                 async with message.process(requeue=False):
                     logger.info(f"Received task (reply to: {message.reply_to})")
                     html, toc = docx_to_html(BytesIO(message.body))
+
                     await exchange.publish(
                             Message(
-                                body=html.encode(),
+                                body=html_to_json(html).encode(),
                                 correlation_id=message.correlation_id
                             ),
                             routing_key=message.reply_to

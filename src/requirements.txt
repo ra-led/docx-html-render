@@ -4,3 +4,5 @@ xmltodict==0.13.0
 fastapi==0.111.0
 aio-pika==9.4.1
 python-multipart==0.0.9
+beautifulsoup4==4.12.3
+pytest==8.2.2 
