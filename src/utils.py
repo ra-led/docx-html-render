@@ -1,8 +1,14 @@
 import asyncio
 import os
 import uuid
+import logging
+import json
 
+import aspose.words as aw
 from aio_pika import Message, connect
+from lxml import etree
+
+logger = logging.getLogger(__name__)
 
 async def get_connection():
     user = os.environ.get('RABBITMQ_USER', default='guest')
@@ -11,6 +17,10 @@ async def get_connection():
     port = os.environ.get('RABBITMQ_PORT', default=5672)
 
     return await connect(f'amqp://{user}:{pasw}@{host}:{port}')
+
+def doc_to_docx(in_stream, out_stream):
+    doc = aw.Document(in_stream)
+    doc.save(out_stream, aw.SaveFormat.DOCX)
 
 class ConverterProxy:
 
@@ -49,5 +59,4 @@ class ConverterProxy:
 
         future: asyncio.Future = self.futures.pop(message.correlation_id)
         future.set_result(message.body)
-
 
