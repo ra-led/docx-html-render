@@ -27,12 +27,17 @@ services:
       - 8000:8000
     environment: 
       <<: [*rabbit-env, *converter-env]
+    depends_on:
+      - rabbitmq
 
   docx-to-html-worker:
     build: ./src
     command: python3 worker.py
+    restart: always
     environment: 
       <<: [*rabbit-env, *converter-env]
+    depends_on:
+      - rabbitmq
 
   rabbitmq:
     image: rabbitmq:3.10.7-management
