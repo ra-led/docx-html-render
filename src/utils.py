@@ -232,10 +232,10 @@ class DocHandler:
     
     def get_table_title(self):
         regex_title = ' '.join(self.last_pars)
-        if "таблица" in regex_title.lower():
-            strat_idx = re.search("таблица", regex_title.lower()).start()
+        try:
+            strat_idx = regex_title.lower().rindex('таблица')
             title = regex_title[strat_idx:]
-        else:
+        except ValueError:
             title = 'Таблица'
             # try:
             #     title = self.last_pars[-1]
