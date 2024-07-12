@@ -17,6 +17,7 @@ x-converter-conf:
 services:
   docx-to-html:
     build: ./src
+    command: gunicorn -w 4 -b 0.0.0.0:5000 -t 120 "app:create_app()"
     ports:
       - "5000:5000"
 

@@ -7,8 +7,7 @@ from io import BytesIO
 
 from aio_pika import Message, connect
 
-from app import docx_to_html
-from utils import get_connection, doc_to_docx
+from utils import get_connection, doc_to_docx, docx_to_html
 from html_to_json import html_to_json
 
 logger = logging.getLogger(__name__)
