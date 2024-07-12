@@ -221,6 +221,7 @@ class DocHandler:
         self.width = int(self.xml['w:document']['w:body']['w:sectPr']['w:pgSz']['@w:w'])
         self.height = int(self.xml['w:document']['w:body']['w:sectPr']['w:pgSz']['@w:h'])
         self.max_frame_space = 7
+        self.last_pars = []
     
     def get_depth_classes(self):
         aa = []
@@ -229,10 +230,24 @@ class DocHandler:
                 aa.append(v)
         return " ".join(aa)
     
+    def get_table_title(self):
+        regex_title = ' '.join(self.last_pars)
+        if "таблица" in regex_title.lower():
+            strat_idx = re.search("таблица", regex_title.lower()).start()
+            title = regex_title[strat_idx:]
+        else:
+            title = 'Таблица'
+            # try:
+            #     title = self.last_pars[-1]
+            # except IndexError:
+            #     title = ''
+        title = html.escape(title if title.strip() else 'Таблица')
+        anchor = f'table{self.tables_cnt}'
+        return title, anchor
+    
     def process_paragraph(self, par):
         html_paragraph = []
         html_links = []
-        style = par.style.name
         num_prefix, depth, source = self.num_db.numerize(par)
         
         styled_text = ''.join([
@@ -242,43 +257,31 @@ class DocHandler:
             ) if run.bold else run.text
             for run in par.runs
         ])
-        par_css = "font-weight: bold;" if par.style.font.bold else ""
+        par_css = paragraph_style(par)
+        tag = 'p'
         
         if depth:
             anchor = 'a' + str(uuid.uuid4())
             self.depth = depth
             self.source = source
             self.depth_anchor[depth] = anchor
-            style = f'Heading {min(7, depth)}'
-            # if 'sub' not in str(source):
-            #     # anchor = str(uuid.uuid4())
-            #     self.depth = depth
-            #     self.source = source
-            #     self.depth_anchor[depth] = anchor
-            #     style = f'Heading {min(7, depth)}'
-            # else:
-            #     # style = 'List Paragraph'
-            #     depth = self.depth + depth
-            #     style = f'Heading {min(7, depth)}'
-        try:
-            tag = STYLE_TAGS[style]
-        except KeyError:
-            tag = 'p'
-        css = paragraph_style(par)
-        classes = self.get_depth_classes()
-        if tag.startswith('h'):  # Check if it's a heading
+        
             if source not in ('HEADING', 'REGEX'):
                 styled_text = f'<span>{num_prefix} </span>' + styled_text
                 text = num_prefix + ' ' + html.escape(par.text) #f' [{source}] ' + 
             else:
                 text = html.escape(par.text)
-            tag = 'p'
-            html_links.append((f'<a href="#{anchor}">{make_toc_header(text, depth)}</a><br>', source))
-            html_paragraph.append(f'<div{css} class="{classes}"><{tag} style="{par_css}" id="{anchor}">{styled_text}</{tag}></div>')
+            classes = self.get_depth_classes()
+            html_links.append(f'<a href="#{anchor}">{make_toc_header(text, depth)}</a><br>')
+            html_paragraph.append(f'<div {par_css} class="{classes}"><{tag} id="{anchor}">{styled_text}</{tag}></div>')
         else:
-            html_paragraph.append(f'<div{css} class="{classes}"><{tag} style="{par_css}">')
-            html_paragraph.append(styled_text)
-            html_paragraph.append(f'</{tag}></div>')
+            classes = self.get_depth_classes()
+            text = html.escape(par.text)
+            html_paragraph.append(f'<div {par_css} class="{classes}"><{tag}>{styled_text}</{tag}></div>')
+        # last to paragraphs for table title
+        if text.strip():
+            self.last_pars.append(text)
+            self.last_pars = self.last_pars[-2:]
         return html_paragraph, html_links
     
     def investigate_table(self, table):
@@ -359,20 +362,13 @@ class DocHandler:
         return left_space, right_space, top_space, bottom_space, sum(text_rows, [])
 
     def process_table(self, table):
-        self.tables_cnt += 1
         frame = self.investigate_table(table)
         if frame:
             left_space, right_space, top_space, bottom_space, text_rows = frame
         else:
             text_rows = []
-        anchor = f'table{self.tables_cnt}'
-        table_links = [
-            # (
-            #     f'<a href="#{anchor}">'
-            #     f'{make_toc_header("", self.depth + 1)}Таблица {self.tables_cnt}'
-            #     '</a><br>', 'T'
-            # )
-        ]
+        table_links = []
+        html_content = ''
         t_xml = xmltodict.parse(table._element.xml, process_namespaces=False)
         try:
             default_borders = {
@@ -385,8 +381,11 @@ class DocHandler:
             # table without thresholds - most likley TEXT
             default_borders = {}
         merged = set()
-        # html_table = f'<table id="{anchor}"class="w3-table w3-hoverable">'
-        html_table = '<table "class="w3-table w3-hoverable">'
+        self.tables_cnt += 1
+        title, anchor = self.get_table_title()
+        classes = self.get_depth_classes()
+        filled = ''
+        html_table = f'<table id="{anchor}"class="w3-table w3-hoverable {classes}" title="{title}">'
         for i, row in enumerate(table.rows):
             html_table += "<tr>"
             for j, cell in enumerate(row.cells):
@@ -433,27 +432,38 @@ class DocHandler:
                         colspan += 1
                     else:
                         break
-                classes = ""
-                if not text_cell:
-                    classes = self.get_depth_classes()
                 if ignore:
                     continue
-                    # text = 'IGNORE'
-                    # classes = 'ignore'
                 if i in text_rows and text_cell:
-                    html_table += '</tr></table>' + text + '<table "class="w3-table w3-hoverable">'
+                    # close table
+                    html_table += '</tr></table>'
+                    # check is table filled
+                    if filled:
+                        html_content += html_table
+                        table_links.append(f'<a href="#{anchor}">{make_toc_header(title, self.depth + 1)}</a><br>')
+                    html_content += text
+                    # new table
+                    self.tables_cnt += 1
+                    classes = self.get_depth_classes()
+                    title, anchor = self.get_table_title()
+                    filled = ''
+                    html_table = f'<table id="{anchor}"class="w3-table w3-hoverable {classes}" title="{title}">'
                     if rowspan > 1 or colspan > 1:
                         merged.add(cell._element)
                     continue
                 else:
                     if rowspan > 1 or colspan > 1:
-                        html_table += f'<td class="{classes}" rowspan="{rowspan}" colspan="{colspan}"{css}>{text}</td>'
+                        html_table += f'<td rowspan="{rowspan}" colspan="{colspan}"{css}>{text}</td>'
                         merged.add(cell._element)
                     else:
                         html_table += f'<td{css}>{text}</td>'
+                    filled += text.strip()
             html_table += "</tr>"
         html_table += "</table>"
-        return html_table, table_links
+        if filled.strip():
+            html_content += html_table
+            table_links.append(f'<a href="#{anchor}">{make_toc_header(title, self.depth + 1)}</a><br>')
+        return html_content, table_links
         
     
 def make_toc_header(text, depth, max_len=35):
@@ -466,9 +476,11 @@ def make_toc_header(text, depth, max_len=35):
 def paragraph_style(par):
     css = ''
     try:
-        css += 'text-align: {}'.format(ALIGNMENT[par.alignment.name])
+        css += 'text-align: {};'.format(ALIGNMENT[par.alignment.name])
     except (KeyError, AttributeError):
         pass
+    if par.style.font.bold:
+        css += 'font-weight: bold;'
     if css:
         css = ' style="' + css + '"'
     return css
@@ -509,4 +521,4 @@ def docx_to_html(docx_path):
             toc_links.extend(table_links)
         else:
             print(type(content), 'missed')
-    return ''.join(html_content), ''.join([link for link, src in toc_links])
+    return ''.join(html_content), ''.join(toc_links)
