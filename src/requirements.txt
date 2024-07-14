@@ -1,4 +1,11 @@
 Flask==2.0.1
 gunicorn
-werkzeug==2.0.3python-docx==1.1.2
+werkzeug==2.0.3
+python-docx==1.1.2
 xmltodict==0.13.0
+fastapi==0.111.0
+aio-pika==9.4.1
+python-multipart==0.0.9
+beautifulsoup4==4.12.3
+pytest==8.2.2 
+aspose-words==24.7.0
