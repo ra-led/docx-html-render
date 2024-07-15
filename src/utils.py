@@ -4,7 +4,7 @@ import string
 import uuid
 import logging
 import json
-import numpy as np
+import statistics
 
 import aspose.words as aw
 from aio_pika import Message, connect
@@ -167,7 +167,7 @@ class NumberingDB:
         if re.findall('^рисунок', par.text.strip().lower()):
             return False
         bold = any([par.style.font.bold] + [run.bold for run in par.runs])
-        regular_font_size = np.median(self.font_size)
+        regular_font_size = statistics.median(self.font_size)
         font_sizes = []
         if par.style.font.size:
             font_sizes.append(par.style.font.size.pt)
