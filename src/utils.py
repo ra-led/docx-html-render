@@ -1,8 +1,10 @@
 import asyncio
 import os
+import string
 import uuid
 import logging
 import json
+import numpy as np
 
 import aspose.words as aw
 from aio_pika import Message, connect
@@ -101,6 +103,7 @@ DEFAULT_LEVELS = [
 
 class NumberingDB:
     def __init__(self, doc):
+        self.font_size = []
         try:
             self.num_xml = xmltodict.parse(
                 doc.part.numbering_part.element.xml,
@@ -164,7 +167,12 @@ class NumberingDB:
         if re.findall('^рисунок', par.text.strip().lower()):
             return False
         bold = any([par.style.font.bold] + [run.bold for run in par.runs])
-        large_font = par.style.font.size.pt > 12 if par.style.font.size else None
+        regular_font_size = np.median(self.font_size)
+        font_sizes = []
+        if par.style.font.size:
+            font_sizes.append(par.style.font.size.pt)
+        font_sizes += [run.font.size.pt for run in par.runs if run.font.size]
+        large_font = any([x > regular_font_size for x in font_sizes])
         if bold or large_font:
             return True
         else:
@@ -195,6 +203,18 @@ class NumberingDB:
                 num_start = 1
             num = self.increment[absId][lvl_i] + num_start - 1
             num = max(num, num_start)
+            try:
+                num_fmt = lvl_a['w:numFmt']['@w:val']
+                if num_fmt == 'upperLetter':
+                    num = string.ascii_uppercase[num - 1]
+                elif num_fmt == 'lowerLetter':
+                    num = string.ascii_lowercase[num - 1]
+                elif num_fmt == 'upperRoman':
+                    num = int_to_roman(num)
+                elif num_fmt == 'lowerRoman':
+                    num = int_to_roman(num).lower()
+            except KeyError:
+                pass
             if f'%{lvl_i + 1}' in num_prefix:
                 depth += 1
                 num_prefix = re.sub(f'%{lvl_i + 1}', str(num), num_prefix)
@@ -227,11 +247,18 @@ class NumberingDB:
     def numerize_by_text(self, par):
         depth = 0
         text = par.text.strip()
-        # Numbers with dots at the begin of text
         num_prefix = ''
+        # Letter with dots at the begin of text
+        letter_pattern = r'^(\w\.)\d'
+        match = re.findall(letter_pattern, text)
+        if match:
+            text = re.sub(r'^\w\.', '', text)
+            num_prefix += match[0]
+            depth += 1
+        # Numbers with dots at the begin of text
         numbering_pattern = r'^\d+\.'
         while 1:
-            match = re.findall(numbering_pattern, text.strip())
+            match = re.findall(numbering_pattern, text)
             if not match:
                 break
             depth += 1
@@ -247,6 +274,20 @@ class NumberingDB:
             return num_prefix, depth, 'REGEX'
         else:
             return '', 0, None
+
+    def numerize_literal_by_text(text):
+        pattern = r'^[A-Za-zА-Яа-яЁё]\.(\d\.)*(\d)?'
+        # Find all matches in the text
+        matches = re.findall(pattern, text)
+        # Calculate the depth of each match
+        if matches:
+            depth = 1  # Start with 1 for the letter
+            for group in matches[0]:
+                print(group)
+                if group:
+                    depth += 1
+        else:
+            return 0
     
     def numerize_by_heading(self, par):
         depth = 0
@@ -254,7 +295,7 @@ class NumberingDB:
         if style:
             match = re.search(r'Heading (\d+)', style)
             if match:
-                depth = int(match.group(1))
+                depth = 1#int(match.group(1))
             elif style == 'Title':
                 depth = 1
         if self.check_heading_style(par):
@@ -311,11 +352,10 @@ class DocHandler:
             strat_idx = regex_title.lower().rindex('таблица')
             title = regex_title[strat_idx:]
         except ValueError:
-            title = 'Таблица'
-            # try:
-            #     title = self.last_pars[-1]
-            # except IndexError:
-            #     title = ''
+            try:
+                title = self.last_pars[-1]
+            except IndexError:
+                title = 'Таблица'
         title = html.escape(title if title.strip() else 'Таблица')
         anchor = f'table{self.tables_cnt}'
         return title, anchor
@@ -325,14 +365,11 @@ class DocHandler:
         html_links = []
         num_prefix, depth, source = self.num_db.numerize(par)
         
-        styled_text = ''.join([
-            '<span style="{bold}">{text}</span>'.format(
-                bold="font-weight: bold;",
-                text=html.escape(run.text)
-            ) if run.bold else run.text
-            for run in par.runs
-        ])
-        par_css = paragraph_style(par)
+        
+        if par.style.font.size:
+            self.num_db.font_size.append(par.style.font.size.pt)
+        self.num_db.font_size += [run.font.size.pt for run in par.runs if run.font.size]
+        # par_css = paragraph_style(par)
         tag = 'p'
         
         if depth:
@@ -340,19 +377,19 @@ class DocHandler:
             self.depth = depth
             self.source = source
             self.depth_anchor[depth] = anchor
-        
+            tag = f'h{max(depth, 7)}'
             if source not in ('HEADING', 'REGEX'):
-                styled_text = f'<span>{num_prefix} </span>' + styled_text
+                # styled_text = f'<span>{num_prefix} </span>' + styled_text
                 text = num_prefix + ' ' + html.escape(par.text) #f' [{source}] ' + 
             else:
                 text = html.escape(par.text)
             classes = self.get_depth_classes()
             html_links.append(f'<a href="#{anchor}">{make_toc_header(text, depth)}</a><br>')
-            html_paragraph.append(f'<div {par_css} class="{classes}"><{tag} id="{anchor}">{styled_text}</{tag}></div>')
+            html_paragraph.append(f'<div class="{classes}"><{tag} id="{anchor}">{text}</{tag}></div>')
         else:
             classes = self.get_depth_classes()
             text = html.escape(par.text)
-            html_paragraph.append(f'<div {par_css} class="{classes}"><{tag}>{styled_text}</{tag}></div>')
+            html_paragraph.append(f'<div class="{classes}"><{tag}>{text}</{tag}></div>')
         # last to paragraphs for table title
         if text.strip():
             self.last_pars.append(text)
@@ -577,6 +614,23 @@ def cell_style(cell, borders, c_xml):
             color = 'fff'
         css += f'border-{side}: {width}px solid #{color};'
     return ' style="' + css + '"'
+
+
+def int_to_roman(num):
+    m = ["", "M", "MM", "MMM"]
+    c = ["", "C", "CC", "CCC", "CD", "D",
+         "DC", "DCC", "DCCC", "CM "]
+    x = ["", "X", "XX", "XXX", "XL", "L",
+         "LX", "LXX", "LXXX", "XC"]
+    i = ["", "I", "II", "III", "IV", "V",
+         "VI", "VII", "VIII", "IX"]
+    thousands = m[num // 1000]
+    hundreds = c[(num % 1000) // 100]
+    tens = x[(num % 100) // 10]
+    ones = i[num % 10]
+    ans = (thousands + hundreds +
+           tens + ones)
+    return ans
 
 
 def docx_to_html(docx_path):
