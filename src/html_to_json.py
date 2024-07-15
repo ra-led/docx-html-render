@@ -39,7 +39,7 @@ def _parse_recursive(tag):
     elif tag.name == 'table':
         return [{
             "content-type": "table",
-            "title": "",
+            "title": tag.get('title', 'Unnamed table'),
             "content": _collect_table_content(tag)
             }]
     elif tag.name in html_header_tags:
