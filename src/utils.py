@@ -167,7 +167,7 @@ class NumberingDB:
         if re.findall('^рисунок', par.text.strip().lower()):
             return False
         bold = any([par.style.font.bold] + [run.bold for run in par.runs])
-        regular_font_size = statistics.median(self.font_size)
+        regular_font_size = statistics.median(self.font_size) if self.font_size else 12
         font_sizes = []
         if par.style.font.size:
             font_sizes.append(par.style.font.size.pt)
