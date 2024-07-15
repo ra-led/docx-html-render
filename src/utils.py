@@ -3,21 +3,25 @@ import os
 import string
 import uuid
 import logging
-import json
 import statistics
+from typing import Union
 
 import aspose.words as aw
 from aio_pika import Message, connect
-from lxml import etree
 import docx
 import re
 import xmltodict
-import uuid
 import html
 
 logger = logging.getLogger(__name__)
 
 async def get_connection():
+    """
+    Establishes a connection to the RabbitMQ server.
+
+    Returns:
+        aio_pika.Connection: The connection object to the RabbitMQ server.
+    """
     user = os.environ.get('RABBITMQ_USER', default='guest')
     pasw = os.environ.get('RABBITMQ_PASS', default='guest')
     host = os.environ.get('RABBITMQ_HOST', default='rabbitmq')
@@ -26,16 +30,38 @@ async def get_connection():
     return await connect(f'amqp://{user}:{pasw}@{host}:{port}')
 
 def doc_to_docx(in_stream, out_stream):
+    """
+    Converts a .doc file to a .docx file using Aspose.Words.
+
+    Args:
+        in_stream (io.BytesIO): The input stream containing the .doc file.
+        out_stream (io.BytesIO): The output stream to write the .docx file.
+    """
     doc = aw.Document(in_stream)
     doc.save(out_stream, aw.SaveFormat.DOCX)
 
 class ConverterProxy:
+    """
+    A proxy class to handle document conversion requests via RabbitMQ.
+    """
 
     def __init__(self):
+        """
+        Initializes the ConverterProxy instance.
+        """
         self.initialized = False
         self.futures = {}
 
     async def convert(self, data: bytes):
+        """
+        Sends a document conversion request to the RabbitMQ queue and waits for the response.
+
+        Args:
+            data (bytes): The document data to be converted.
+
+        Returns:
+            bytes: The converted document data.
+        """
         if not self.initialized:
             self.initialized = True
             self.connection = await get_connection()
@@ -60,13 +86,18 @@ class ConverterProxy:
         return await future
 
     async def on_message(self, message):
+        """
+        Handles incoming messages from the RabbitMQ callback queue.
+
+        Args:
+            message (aio_pika.IncomingMessage): The incoming message from the RabbitMQ queue.
+        """
         if message.correlation_id is None:
             print(f"Bad message {message!r}")
             return
 
         future: asyncio.Future = self.futures.pop(message.correlation_id)
         future.set_result(message.body)
-
 
 
 STYLE_TAGS = {
@@ -89,20 +120,29 @@ ALIGNMENT = {
 }
 
 DEFAULT_LEVELS = [
-    {'@w:ilvl': '0', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1'}},
-    {'@w:ilvl': '1', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2'}},
-    {'@w:ilvl': '2', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2.%3'}},
-    {'@w:ilvl': '3', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2.%3.%4'}},
-    {'@w:ilvl': '4', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2.%3.%4.%5'}},
-    {'@w:ilvl': '5', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2.%3.%4.%5.%6'}},
-    {'@w:ilvl': '6', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2.%3.%4.%5.%6.%7'}},
-    {'@w:ilvl': '7', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2.%3.%4.%5.%6.%7.%8'}},
-    {'@w:ilvl': '8', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default - %1.%2.%3.%4.%5.%6.%7.%8.%9'}}
+    {'@w:ilvl': '0', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1'}},
+    {'@w:ilvl': '1', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2'}},
+    {'@w:ilvl': '2', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3'}},
+    {'@w:ilvl': '3', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4'}},
+    {'@w:ilvl': '4', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5'}},
+    {'@w:ilvl': '5', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6'}},
+    {'@w:ilvl': '6', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7'}},
+    {'@w:ilvl': '7', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7.%8'}},
+    {'@w:ilvl': '8', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7.%8.%9'}}
 ]
 
 
 class NumberingDB:
-    def __init__(self, doc):
+    """
+    Handles numbering and styles in a DOCX document.
+    """
+    def __init__(self, doc: docx.Document):
+        """
+        Initializes the NumberingDB with a DOCX document.
+        
+        Args:
+            doc (docx.Document): The DOCX document to process.
+        """
         self.font_size = []
         try:
             self.num_xml = xmltodict.parse(
@@ -141,7 +181,17 @@ class NumberingDB:
             for k, v in self.levels.items()
         }
         
-    def get_abs_id(self, numId=None, styleId=None):
+    def get_abs_id(self, numId: str = None, styleId: str = None) -> Union[str, None]:
+        """
+        Retrieves the abstract number ID for a given number ID or style ID.
+        
+        Args:
+            numId (str, optional): The number ID.
+            styleId (str, optional): The style ID.
+        
+        Returns:
+            str: The abstract number ID.
+        """
         if numId:
             try:
                 return self.nums_to_abstarct[numId]
@@ -150,7 +200,6 @@ class NumberingDB:
         if styleId:
             try:
                 return self.style_to_abstract[styleId]
-
             except KeyError:
                 pass
         if numId:
@@ -161,7 +210,16 @@ class NumberingDB:
             return absId
         return None
     
-    def check_heading_style(self, par):
+    def check_heading_style(self, par: docx.text.paragraph.Paragraph) -> bool:
+        """
+        Checks if a paragraph has a heading style.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to check.
+        
+        Returns:
+            bool: True if the paragraph has a heading style, False otherwise.
+        """
         if re.findall('^таблица', par.text.strip().lower()):
             return False
         if re.findall('^рисунок', par.text.strip().lower()):
@@ -178,20 +236,23 @@ class NumberingDB:
         else:
             return False
     
-    def count_builtin(self, absId, level, par):
-        # find outlined numaration levels
-        # try:
-        #     out_lvl = [self.styles[par.style.style_id]['w:pPr']['w:outlineLvl']['@w:val']]
-        # except KeyError:
-        #     out_lvl = []
-        # Re-init lower leves
+    def count_builtin(self, absId: str, level: int, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Counts the built-in numbering for a given abstract number ID and level.
+        
+        Args:
+            absId (str): The abstract number ID.
+            level (int): The level of the numbering.
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the numbering prefix, depth, and source.
+        """
         self.increment[absId][level] += 1
         for lvl_i in self.increment[absId]:
             if lvl_i > level:
                 self.increment[absId][lvl_i] = 0
-        # Get levels
         abstarct_levels = self.levels[absId]
-        # Generate num prefix
         depth = 0
         num_prefix = abstarct_levels[level]['w:lvlText']['@w:val']
         for lvl_a, lvl_i in zip(abstarct_levels, self.increment[absId]):
@@ -220,7 +281,16 @@ class NumberingDB:
                 num_prefix = re.sub(f'%{lvl_i + 1}', str(num), num_prefix)
         return num_prefix, depth, absId
     
-    def numrize_by_meta(self, par):
+    def numrize_by_meta(self, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Processes numbering by metadata.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the numbering prefix, depth, and source.
+        """
         p_xml = xmltodict.parse(par._p.xml, process_namespaces=False)
         try:
             numId = p_xml['w:p']['w:pPr']['w:numPr']['w:numId']['@w:val']
@@ -234,7 +304,16 @@ class NumberingDB:
         else:
             return '', 0, None
     
-    def numrize_by_style(self, par):
+    def numrize_by_style(self, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Processes numbering by style.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the numbering prefix, depth, and source.
+        """
         style_abs = self.get_abs_id(styleId=par.style.style_id)
         if style_abs is None:
             base_style_id = par.style.base_style.style_id if par.style.base_style else None
@@ -244,18 +323,25 @@ class NumberingDB:
         absId, level = style_abs['absId'], style_abs['lvl']
         return self.count_builtin(absId, level, par)
     
-    def numerize_by_text(self, par):
+    def numerize_by_text(self, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Processes numbering by text.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the numbering prefix, depth, and source.
+        """
         depth = 0
         text = par.text.strip()
         num_prefix = ''
-        # Letter with dots at the begin of text
         letter_pattern = r'^(\w\.)\d'
         match = re.findall(letter_pattern, text)
         if match:
             text = re.sub(r'^\w\.', '', text)
             num_prefix += match[0]
             depth += 1
-        # Numbers with dots at the begin of text
         numbering_pattern = r'^\d+\.'
         while 1:
             match = re.findall(numbering_pattern, text)
@@ -264,7 +350,6 @@ class NumberingDB:
             depth += 1
             text = re.sub(numbering_pattern, '', text)
             num_prefix += match[0]
-        # Last chance num without dot
         numbering_pattern = r'^\d+\s'
         match = re.findall(numbering_pattern, text.strip())
         if match:
@@ -275,27 +360,22 @@ class NumberingDB:
         else:
             return '', 0, None
 
-    def numerize_literal_by_text(text):
-        pattern = r'^[A-Za-zА-Яа-яЁё]\.(\d\.)*(\d)?'
-        # Find all matches in the text
-        matches = re.findall(pattern, text)
-        # Calculate the depth of each match
-        if matches:
-            depth = 1  # Start with 1 for the letter
-            for group in matches[0]:
-                print(group)
-                if group:
-                    depth += 1
-        else:
-            return 0
-    
-    def numerize_by_heading(self, par):
+    def numerize_by_heading(self, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Processes numbering by heading.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the numbering prefix, depth, and source.
+        """
         depth = 0
         style = par.style.name
         if style:
             match = re.search(r'Heading (\d+)', style)
             if match:
-                depth = 1#int(match.group(1))
+                depth = 1
             elif style == 'Title':
                 depth = 1
         if self.check_heading_style(par):
@@ -303,7 +383,16 @@ class NumberingDB:
         else:
             return '', 0, None
     
-    def numerize(self, par):
+    def numerize(self, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Processes numbering for a paragraph.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the numbering prefix, depth, and source.
+        """
         numerize_prioritet = [
             self.numrize_by_meta,
             self.numrize_by_style,
@@ -318,7 +407,16 @@ class NumberingDB:
         
 
 class DocHandler:
-    def __init__(self, doc):
+    """
+    Handles the conversion of DOCX document content to HTML.
+    """
+    def __init__(self, doc: docx.Document):
+        """
+        Initializes the DocHandler with a DOCX document.
+        
+        Args:
+            doc (docx.Document): The DOCX document to process.
+        """
         self.xml = xmltodict.parse(doc.element.xml, process_namespaces=False)
         self.num_db = NumberingDB(doc)
         self.depth = 0
@@ -326,7 +424,6 @@ class DocHandler:
         self.depth_anchor = {}
         self.tables_cnt = 0
 
-        # дефолтные width и height для А4 взял тут: https://answers.microsoft.com/en-us/msoffice/forum/all/bug-when-converting-from-doc-to-docx/1577adfd-054f-e011-8dfc-68b599b31bf5
         try:
             self.width = int(self.xml['w:document']['w:body']['w:sectPr']['w:pgSz']['@w:w'])
         except KeyError:
@@ -339,14 +436,26 @@ class DocHandler:
         self.max_frame_space = 7
         self.last_pars = []
     
-    def get_depth_classes(self):
+    def get_depth_classes(self) -> str:
+        """
+        Retrieves the depth classes for HTML elements.
+        
+        Returns:
+            str: The depth classes as a string.
+        """
         aa = []
         for k, v in self.depth_anchor.items():
             if k <= self.depth:
                 aa.append(v)
         return " ".join(aa)
     
-    def get_table_title(self):
+    def get_table_title(self) -> tuple:
+        """
+        Retrieves the title for a table.
+        
+        Returns:
+            tuple: A tuple containing the title and anchor for the table.
+        """
         regex_title = ' '.join(self.last_pars)
         try:
             strat_idx = regex_title.lower().rindex('таблица')
@@ -360,16 +469,23 @@ class DocHandler:
         anchor = f'table{self.tables_cnt}'
         return title, anchor
     
-    def process_paragraph(self, par):
+    def process_paragraph(self, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Processes a paragraph to convert it to HTML.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the HTML content and table of contents links.
+        """
         html_paragraph = []
         html_links = []
         num_prefix, depth, source = self.num_db.numerize(par)
         
-        
         if par.style.font.size:
             self.num_db.font_size.append(par.style.font.size.pt)
         self.num_db.font_size += [run.font.size.pt for run in par.runs if run.font.size]
-        # par_css = paragraph_style(par)
         tag = 'p'
         
         if depth:
@@ -379,8 +495,7 @@ class DocHandler:
             self.depth_anchor[depth] = anchor
             tag = f'h{max(depth, 7)}'
             if source not in ('HEADING', 'REGEX'):
-                # styled_text = f'<span>{num_prefix} </span>' + styled_text
-                text = num_prefix + ' ' + html.escape(par.text) #f' [{source}] ' + 
+                text = num_prefix + ' ' + html.escape(par.text)
             else:
                 text = html.escape(par.text)
             classes = self.get_depth_classes()
@@ -390,13 +505,21 @@ class DocHandler:
             classes = self.get_depth_classes()
             text = html.escape(par.text)
             html_paragraph.append(f'<div class="{classes}"><{tag}>{text}</{tag}></div>')
-        # last to paragraphs for table title
         if text.strip():
             self.last_pars.append(text)
             self.last_pars = self.last_pars[-2:]
         return html_paragraph, html_links
     
-    def investigate_table(self, table):
+    def investigate_table(self, table: docx.table.Table) -> Union[tuple, None]:
+        """
+        Investigates a table to determine its structure. Detects blueprint frame
+        
+        Args:
+            table (docx.table.Table): The table to investigate.
+        
+        Returns:
+            tuple: A tuple containing the blueprint's frame left, right, top, and bottom spaces, and text rows. Return None if no frame detected.
+        """
         t_xml = xmltodict.parse(table._element.xml, process_namespaces=False)
         try:
             table_height = sum([
@@ -415,14 +538,11 @@ class DocHandler:
                 if cell._element in merged:
                     continue
                 c_xml = xmltodict.parse(cell._element.xml, process_namespaces=False)
-                # Cell width
                 try:
                     cell_width = int(c_xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
                     text_cell = (cell_width / self.width) >= 0.8
                 except KeyError:
-                    #c_xml['w:tc']['w:tcPr']['w:shd'] # !!! rest of row from other columns
                     text_cell = False
-                # detect merged cells
                 rowspan = 1
                 colspan = 1
                 if text_cell:
@@ -446,7 +566,6 @@ class DocHandler:
                         'row_bottom_space': i + rowspan,
                         'col_right_space': j + colspan
                     })
-        # Find col space
         try:
             left_space = max(d['col_left_space'] for d in all_text_cells)
             frequent_right_space = max(
@@ -473,7 +592,16 @@ class DocHandler:
         text_rows = [list(range(x['row_top_space'], x['row_bottom_space'])) for x in all_text_cells]
         return left_space, right_space, top_space, bottom_space, sum(text_rows, [])
 
-    def process_table(self, table):
+    def process_table(self, table: docx.table.Table) -> tuple:
+        """
+        Processes a table to convert it to HTML.
+        
+        Args:
+            table (docx.table.Table): The table to process.
+        
+        Returns:
+            tuple: A tuple containing the HTML content and table of contents links.
+        """
         frame = self.investigate_table(table)
         if frame:
             left_space, right_space, top_space, bottom_space, text_rows = frame
@@ -490,7 +618,6 @@ class DocHandler:
                 'w:top': t_xml['w:tbl']['w:tblPr']['w:tblBorders']['w:insideH']
             }
         except KeyError:
-            # table without thresholds - most likley TEXT
             default_borders = {}
         merged = set()
         self.tables_cnt += 1
@@ -514,14 +641,11 @@ class DocHandler:
                 if cell._element in merged:
                     continue
                 c_xml = xmltodict.parse(cell._element.xml, process_namespaces=False)
-                # Cell width
                 try:
                     cell_width = int(c_xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
                     text_cell = (cell_width / self.width) >= 0.8
                 except KeyError:
-                    #c_xml['w:tc']['w:tcPr']['w:shd'] # !!! rest of row from other columns
                     text_cell = False
-                # Cell is text
                 if text_cell:
                     text = ''
                     for c_par in cell.paragraphs:
@@ -531,7 +655,6 @@ class DocHandler:
                 else:
                     text = cell.text
                 css = cell_style(cell, default_borders.copy(), c_xml)
-                # detect merged cells
                 rowspan = 1
                 colspan = 1
                 for next_row in table.rows[i+1:]:
@@ -547,14 +670,11 @@ class DocHandler:
                 if ignore:
                     continue
                 if i in text_rows and text_cell:
-                    # close table
                     html_table += '</tr></table>'
-                    # check is table filled
                     if filled:
                         html_content += html_table
                         table_links.append(f'<a href="#{anchor}">{make_toc_header(title, self.depth + 1)}</a><br>')
                     html_content += text
-                    # new table
                     self.tables_cnt += 1
                     classes = self.get_depth_classes()
                     title, anchor = self.get_table_title()
@@ -578,14 +698,34 @@ class DocHandler:
         return html_content, table_links
         
     
-def make_toc_header(text, depth, max_len=35):
+def make_toc_header(text: str, depth: int, max_len: int = 35) -> str:
+    """
+    Creates a table of contents header.
+    
+    Args:
+        text (str): The text of the header.
+        depth (int): The depth of the header.
+        max_len (int, optional): The maximum length of the header text.
+    
+    Returns:
+        str: The formatted table of contents header.
+    """
     text = '__' * (depth - 1) + text
     if len(text) > max_len:
         text = text[:max_len] + '...'
     return text
 
 
-def paragraph_style(par):
+def paragraph_style(par: docx.text.paragraph.Paragraph) -> str:
+    """
+    Retrieves the CSS style for a paragraph.
+    
+    Args:
+        par (docx.text.paragraph.Paragraph): The paragraph to process.
+    
+    Returns:
+        str: The CSS style as a string.
+    """
     css = ''
     try:
         css += 'text-align: {};'.format(ALIGNMENT[par.alignment.name])
@@ -598,7 +738,18 @@ def paragraph_style(par):
     return css
 
 
-def cell_style(cell, borders, c_xml):
+def cell_style(cell: docx.table.Cell, borders: dict, c_xml: dict) -> str:
+    """
+    Retrieves the CSS style for a table cell.
+    
+    Args:
+        cell (docx.table.Cell): The cell to process.
+        borders (dict): The borders dictionary.
+        c_xml (dict): The XML dictionary for the cell.
+    
+    Returns:
+        str: The CSS style as a string.
+    """
     try:
         borders.update(c_xml['w:tc']['w:tcPr']['w:tcBorders'])
     except KeyError:
@@ -616,7 +767,16 @@ def cell_style(cell, borders, c_xml):
     return ' style="' + css + '"'
 
 
-def int_to_roman(num):
+def int_to_roman(num: int) -> str:
+    """
+    Converts an integer to a Roman numeral.
+    
+    Args:
+        num (int): The integer to convert.
+    
+    Returns:
+        str: The Roman numeral as a string.
+    """
     m = ["", "M", "MM", "MMM"]
     c = ["", "C", "CC", "CCC", "CD", "D",
          "DC", "DCC", "DCCC", "CM "]
@@ -633,7 +793,16 @@ def int_to_roman(num):
     return ans
 
 
-def docx_to_html(docx_path):
+def docx_to_html(docx_path: str) -> tuple:
+    """
+    Converts a DOCX document to HTML.
+    
+    Args:
+        docx_path (str): The path to the DOCX file.
+    
+    Returns:
+        tuple: A tuple containing the HTML content and table of contents links.
+    """
     doc = docx.Document(docx_path)
     handler = DocHandler(doc)
     html_content = []

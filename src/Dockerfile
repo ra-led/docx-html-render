@@ -10,4 +10,9 @@ RUN python3 -m pip install --upgrade pip
 WORKDIR /src
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Documentation
+RUN pip install sphinx sphinx-autodoc
+RUN make -C docs html
+
 COPY . .
