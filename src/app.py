@@ -1,5 +1,7 @@
-from flask import Flask, render_template, request, redirect, send_file
+import json
 import os
+import traceback
+from flask import Flask, render_template, request, redirect, send_file
 import tempfile
 from utils import docx_to_html
 from html_to_json import html_to_json
@@ -26,7 +28,13 @@ def create_app():
                 os.unlink(temp_file.name)
 
                 # Convert HTML to JSON
-                json_data = html_to_json(html)
+                try:
+                    json_data = html_to_json(html)
+                except Exception as ex:
+                    tb = ''.join(
+                        traceback.TracebackException.from_exception(ex).format()
+                    )
+                    json_data = json.dumps({'result': 'Failed', 'traceback': tb})
                 json_file_path = os.path.join(app.config['UPLOAD_FOLDER'], 'output.json')
                 with open(json_file_path, 'w') as json_file:
                     json_file.write(json_data)
