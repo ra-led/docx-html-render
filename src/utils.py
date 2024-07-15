@@ -136,7 +136,7 @@ class NumberingDB:
     """
     Handles numbering and styles in a DOCX document.
     """
-    def __init__(self, doc: docx.Document):
+    def __init__(self, doc: docx.Document, appendix_header_length: int = 40):
         """
         Initializes the NumberingDB with a DOCX document.
         
@@ -180,8 +180,9 @@ class NumberingDB:
             k: {i: 0 for i in range(len(v))}
             for k, v in self.levels.items()
         }
+        self.appendix_header_length = appendix_header_length
         
-    def get_abs_id(self, numId: str = None, styleId: str = None) -> Union[str, None]:
+    def get_abs_id(self, numId: Union[str, None] = None, styleId: Union[str, None] = None) -> Union[str, None]:
         """
         Retrieves the abstract number ID for a given number ID or style ID.
         
@@ -299,10 +300,12 @@ class NumberingDB:
         level = int(p_xml['w:p']['w:pPr']['w:numPr']['w:ilvl']['@w:val'])
         absId = self.get_abs_id(numId=numId)
         num_prefix, depth, source = self.count_builtin(absId, level, par)
-        if self.check_heading_style(par) or depth > 1:
-            return num_prefix, depth, source
-        else:
-            return '', 0, None
+        if  not self.check_heading_style(par) and depth == 1:
+            depth = 0
+        # sublist always ends with ")"
+        if ')' in num_prefix:
+            depth = 0
+        return num_prefix, depth, source
     
     def numrize_by_style(self, par: docx.text.paragraph.Paragraph) -> tuple:
         """
@@ -378,8 +381,25 @@ class NumberingDB:
                 depth = 1
             elif style == 'Title':
                 depth = 1
-        if self.check_heading_style(par):
+        if self.check_heading_style(par) and depth > 0:
             return par.text if par.text.strip() else '[UNNAMED]', depth, 'HEADING'
+        else:
+            return '', 0, None
+        
+    def numerize_by_appendix(self, par: docx.text.paragraph.Paragraph) -> tuple:
+        """
+        Processes numbering by detecting appendix header.
+        
+        Args:
+            par (docx.text.paragraph.Paragraph): The paragraph to process.
+        
+        Returns:
+            tuple: A tuple containing the numbering prefix, depth, and source.
+        """
+        text = par.text.strip().split('\n')[0]
+        match = re.search(r'^приложение', text.lower())
+        if match and len(par.text.strip()) < self.appendix_header_length:
+            return text, 1, 'APPENDIX'
         else:
             return '', 0, None
     
@@ -397,7 +417,8 @@ class NumberingDB:
             self.numrize_by_meta,
             self.numrize_by_style,
             self.numerize_by_text,
-            self.numerize_by_heading
+            self.numerize_by_heading,
+            self.numerize_by_appendix
         ]
         for method in numerize_prioritet:
             num_prefix, depth, source = method(par)
@@ -486,24 +507,24 @@ class DocHandler:
         if par.style.font.size:
             self.num_db.font_size.append(par.style.font.size.pt)
         self.num_db.font_size += [run.font.size.pt for run in par.runs if run.font.size]
+        
         tag = 'p'
+        if source not in ('HEADING', 'REGEX', 'APPENDIX') and num_prefix:
+            text = num_prefix + ' ' + html.escape(par.text)
+        else:
+            text = html.escape(par.text)
         
         if depth:
             anchor = 'a' + str(uuid.uuid4())
             self.depth = depth
             self.source = source
             self.depth_anchor[depth] = anchor
-            tag = f'h{max(depth, 7)}'
-            if source not in ('HEADING', 'REGEX'):
-                text = num_prefix + ' ' + html.escape(par.text)
-            else:
-                text = html.escape(par.text)
+            tag = f'h{min(depth, 9)}'
             classes = self.get_depth_classes()
             html_links.append(f'<a href="#{anchor}">{make_toc_header(text, depth)}</a><br>')
             html_paragraph.append(f'<div class="{classes}"><{tag} id="{anchor}">{text}</{tag}></div>')
         else:
             classes = self.get_depth_classes()
-            text = html.escape(par.text)
             html_paragraph.append(f'<div class="{classes}"><{tag}>{text}</{tag}></div>')
         if text.strip():
             self.last_pars.append(text)
