@@ -738,7 +738,7 @@ def paragraph_style(par: docx.text.paragraph.Paragraph) -> str:
     return css
 
 
-def cell_style(cell: docx.table.Cell, borders: dict, c_xml: dict) -> str:
+def cell_style(cell: docx.table._Cell, borders: dict, c_xml: dict) -> str:
     """
     Retrieves the CSS style for a table cell.
     
