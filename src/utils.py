@@ -13,6 +13,7 @@ import re
 import xmltodict
 import html
 
+
 logger = logging.getLogger(__name__)
 
 async def get_connection():
@@ -444,6 +445,9 @@ class DocHandler:
         self.source = None
         self.depth_anchor = {}
         self.tables_cnt = 0
+        self.page = 0
+        self.last_indent = 0
+        self.last_pars = []
 
         try:
             self.width = int(self.xml['w:document']['w:body']['w:sectPr']['w:pgSz']['@w:w'])
@@ -455,8 +459,19 @@ class DocHandler:
             self.height = 16840
 
         self.max_frame_space = 7
-        self.last_pars = []
+        self.max_toc_pages = 10
+        self.max_pages = 1000
     
+    def detect_toc_row(self, par: docx.text.paragraph.Paragraph) -> bool:
+        if self.page > self.max_toc_pages:
+            return False
+        text = par.text.strip()
+        match = re.search(r'(\d+)$', text)
+        if match:
+            return int(match[0]) < self.max_pages
+        else:
+            return False
+
     def get_depth_classes(self) -> str:
         """
         Retrieves the depth classes for HTML elements.
@@ -500,6 +515,11 @@ class DocHandler:
         Returns:
             tuple: A tuple containing the HTML content and table of contents links.
         """
+        top_indent = par.paragraph_format.first_line_indent
+        if top_indent:
+            self.page += self.last_indent > top_indent
+            self.last_indent = top_indent
+            
         html_paragraph = []
         html_links = []
         num_prefix, depth, source = self.num_db.numerize(par)
@@ -513,7 +533,10 @@ class DocHandler:
             text = num_prefix + ' ' + html.escape(par.text)
         else:
             text = html.escape(par.text)
-        
+        # Check TOC row
+        if self.detect_toc_row(par):
+            depth = 0
+        # Render
         if depth:
             anchor = 'a' + str(uuid.uuid4())
             self.depth = depth
