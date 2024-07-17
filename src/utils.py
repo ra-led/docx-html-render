@@ -13,6 +13,8 @@ import re
 import xmltodict
 import html
 
+from ml import BERTTextClassifier
+
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +139,9 @@ class NumberingDB:
     """
     Handles numbering and styles in a DOCX document.
     """
-    def __init__(self, doc: docx.Document, appendix_header_length: int = 40):
+    def __init__(self, doc: docx.Document, appendix_header_length: int = 40,
+                 norm_numeration_model: str = 'model_dir/num_clf',
+                 norm_heading_model: str = 'model_dir/word_clf'):
         """
         Initializes the NumberingDB with a DOCX document.
         
@@ -151,7 +155,7 @@ class NumberingDB:
                 process_namespaces=False
             )
             self.levels = {
-                x['@w:abstractNumId']: x['w:lvl']
+                x['@w:abstractNumId']: x['w:lvl'] if type(x['w:lvl']) is list else [x['w:lvl']]
                 for x in self.num_xml['w:numbering']['w:abstractNum']
             }
             self.nums_to_abstarct = {
@@ -182,6 +186,9 @@ class NumberingDB:
             for k, v in self.levels.items()
         }
         self.appendix_header_length = appendix_header_length
+        
+        self.norm_numeration_clf = BERTTextClassifier(norm_numeration_model)
+        self.norm_heading_clf = BERTTextClassifier(norm_numeration_model)
         
     def get_abs_id(self, numId: Union[str, None] = None, styleId: Union[str, None] = None) -> Union[str, None]:
         """
@@ -304,8 +311,15 @@ class NumberingDB:
         if  not self.check_heading_style(par) and depth == 1:
             depth = 0
         # sublist always ends with ")"
-        if ')' in num_prefix:
+        if any([symb in num_prefix for symb in [')', '-', ':']]):
             depth = 0
+        # sublist text always starts with '-'
+        try:
+            if any([symb in num_prefix for symb in ['-', '–', '—', '−']]) or\
+                any([symb == par.text.strip()[0] for symb in ['-', '–', '—', '−']]):
+                depth = 0
+        except IndexError:
+            return '', 0, None
         return num_prefix, depth, source
     
     def numrize_by_style(self, par: docx.text.paragraph.Paragraph) -> tuple:
@@ -329,7 +343,7 @@ class NumberingDB:
     
     def numerize_by_text(self, par: docx.text.paragraph.Paragraph) -> tuple:
         """
-        Processes numbering by text.
+        Detect numbering in text prefix.
         
         Args:
             par (docx.text.paragraph.Paragraph): The paragraph to process.
@@ -340,12 +354,14 @@ class NumberingDB:
         depth = 0
         text = par.text.strip()
         num_prefix = ''
+        
         letter_pattern = r'^(\w\.)\d'
         match = re.findall(letter_pattern, text)
         if match:
             text = re.sub(r'^\w\.', '', text)
             num_prefix += match[0]
             depth += 1
+        
         numbering_pattern = r'^\d+\.'
         while 1:
             match = re.findall(numbering_pattern, text)
@@ -354,13 +370,26 @@ class NumberingDB:
             depth += 1
             text = re.sub(numbering_pattern, '', text)
             num_prefix += match[0]
+        
         numbering_pattern = r'^\d+\s'
         match = re.findall(numbering_pattern, text.strip())
         if match:
             depth += 1
+            text = re.sub(numbering_pattern, '', text)
             num_prefix += match[0]
+        # sublist text always starts with '-'
+        try:
+            if any([symb in num_prefix for symb in ['-', '–', '—', '−']]) or \
+                any([symb == text.strip()[0] for symb in ['-', '–', '—', '−']]):
+                return '', 0, None
+        except IndexError:
+            return '', 0, None
+        # check style
         if self.check_heading_style(par) or depth > 1:
-            return num_prefix, depth, 'REGEX'
+            if self.norm_numeration_clf(par.text):
+                return num_prefix, depth, 'REGEX'
+            else:
+                return '', 0, None
         else:
             return '', 0, None
 
@@ -383,7 +412,10 @@ class NumberingDB:
             elif style == 'Title':
                 depth = 1
         if self.check_heading_style(par) and depth > 0:
-            return par.text if par.text.strip() else '[UNNAMED]', depth, 'HEADING'
+            if self.norm_heading_clf(par.text):
+                return par.text if par.text.strip() else '[UNNAMED]', depth, 'HEADING'
+            else:
+                return '', 0, None
         else:
             return '', 0, None
         
@@ -515,10 +547,13 @@ class DocHandler:
         Returns:
             tuple: A tuple containing the HTML content and table of contents links.
         """
-        top_indent = par.paragraph_format.first_line_indent
-        if top_indent:
+        try:
+            p_xml = xmltodict.parse(par._p.xml, process_namespaces=False)
+            top_indent = float(p_xml['w:p']['w:pPr']['w:ind']['@w:hanging'])
             self.page += self.last_indent > top_indent
             self.last_indent = top_indent
+        except KeyError:
+            pass
             
         html_paragraph = []
         html_links = []
@@ -532,7 +567,7 @@ class DocHandler:
         if source not in ('HEADING', 'REGEX', 'APPENDIX') and num_prefix:
             text = num_prefix + ' ' + html.escape(par.text)
         else:
-            text = html.escape(par.text)
+            text = html.escape(par.text) 
         # Check TOC row
         if self.detect_toc_row(par):
             depth = 0
@@ -549,6 +584,7 @@ class DocHandler:
         else:
             classes = self.get_depth_classes()
             html_paragraph.append(f'<div class="{classes}"><{tag}>{text}</{tag}></div>')
+
         if text.strip():
             self.last_pars.append(text)
             self.last_pars = self.last_pars[-2:]
