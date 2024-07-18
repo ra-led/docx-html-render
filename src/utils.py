@@ -155,14 +155,27 @@ class NumberingDB:
                 doc.part.numbering_part.element.xml,
                 process_namespaces=False
             )
-            self.levels = {
-                x['@w:abstractNumId']: x['w:lvl'] if type(x['w:lvl']) is list else [x['w:lvl']]
-                for x in self.num_xml['w:numbering']['w:abstractNum']
-            }
-            self.nums_to_abstarct = {
-                x['@w:numId']: x['w:abstractNumId']['@w:val']
-                for x in self.num_xml['w:numbering']['w:num']
-            }
+            try:
+                abstract_levels = self.num_xml['w:numbering']['w:abstractNum']
+            except KeyError:
+                abstract_levels = []
+            if type(self.abstract_levels) is list:
+                self.levels = {
+                    x['@w:abstractNumId']: x['w:lvl'] if type(x['w:lvl']) is list else [x['w:lvl']]
+                    for x in abstract_levels
+                }
+            else:
+                self.levels = {
+                    abstract_levels['@w:abstractNumId']: abstract_levels['w:lvl']
+                    if type(abstract_levels['w:lvl']) is list else [abstract_levels['w:lvl']]
+                }
+            try:
+                self.nums_to_abstarct = {
+                    x['@w:numId']: x['w:abstractNumId']['@w:val']
+                    for x in self.num_xml['w:numbering']['w:num']
+                }
+            except KeyError:
+                self.nums_to_abstarct = {}
         except NotImplementedError:
             self.levels = {}
             self.nums_to_abstract = {}
