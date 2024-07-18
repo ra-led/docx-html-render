@@ -742,7 +742,10 @@ class DocHandler:
                         table_links += html_links
                         text += ''.join(html_paragraph)
                 else:
-                    text = cell.text
+                    text = ''
+                    for c_par in cell.paragraphs:
+                        if c_par.text.strip():
+                            text += f'<p>{c_par.text}</p>'
                 css = cell_style(cell, default_borders.copy(), c_xml)
                 rowspan = 1
                 colspan = 1
