@@ -4,7 +4,8 @@ import string
 import uuid
 import logging
 import statistics
-from typing import Union
+from typing import List, Union
+from bs4 import BeautifulSoup
 
 import aspose.words as aw
 from aio_pika import Message, connect
@@ -496,6 +497,8 @@ class DocHandler:
         self.avg_page_chars_count = 1200
     
     def detect_toc_row(self, par: docx.text.paragraph.Paragraph) -> bool:
+        if '.....' in par.text:
+            return True
         if self.page > self.max_toc_pages:
             return False
         text = par.text.strip()
@@ -527,7 +530,10 @@ class DocHandler:
         """
         regex_title = ' '.join(self.last_pars)
         try:
-            strat_idx = regex_title.lower().rindex('таблица')
+            strat_idx = max(
+                regex_title.lower().rindex('таблица'),
+                regex_title.lower().rindex('т а б л и ц а')
+            )
             title = regex_title[strat_idx:]
         except ValueError:
             try:
@@ -779,7 +785,94 @@ class DocHandler:
             html_content += html_table
             table_links.append(f'<a href="#{anchor}">{make_toc_header(title, self.depth + 1)}</a><br>')
         return html_content, table_links
+    
+    def process_tables_batch(self, contents_batch: List[str]):
+        '''
+        Function `process_tables_batch` combines several HTML code snippets into one. Sometimes passages may contain the beginning and end of the same table, so you need to combine them into one "<table>" tag.
+
+        Parameters
+        ----------
+        contents_batch : List[str]
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        '''
+        collected_tags = []
+        collected_links = []
         
+        for xml_content in contents_batch:
+            # Parse content and create HTML content
+            new_tags, new_links = self.process_table(xml_content)
+            # Split HTML content to HTML tags list
+            new_tags = split_tags(new_tags)
+            
+            # If any tags allready exist
+            if collected_tags:
+                try: # !!! TODO: перенести в функции и проверить new_tags
+                    # check if table in first new tag is an extension of table form last collected tag
+                    if table_extend(prev_tag=collected_tags[-1], next_tag=new_tags[0]):
+                        # concat tables if so
+                        collected_tags[-1] = concat_tables(prev_table=collected_tags[-1], next_table=new_tags[0])
+                        new_tags = new_tags[1:]
+                        new_links = new_links[1:]
+                except IndexError:
+                    pass
+    
+            collected_tags.extend(new_tags)
+            collected_links.extend(new_links)
+            
+        return '\n'.join(collected_tags), collected_links
+
+
+def split_tags(html_content: str) -> List[str]:
+    # Split HTML content into individual tags
+    tags = [str(tag) for tag in BeautifulSoup(html_content, features="html.parser").children]
+    return tags
+
+
+def table_extend(prev_tag: str, next_tag: str) -> bool:
+    # Check if both tags are <table> tags
+    if not (prev_tag.startswith('<table') and next_tag.startswith('<table')):
+        return False
+    
+    # Extract the number of columns from the first row of each table
+    # try:
+    last_row = BeautifulSoup(prev_tag, features="html.parser").findAll('tr')[0]
+    first_row = BeautifulSoup(prev_tag, features="html.parser").findAll('tr')[0]
+    
+    # Count the number of <td> or <th> tags in the first row
+    prev_col_count = max(
+        len(last_row.findAll('th')),
+        len(last_row.findAll('td'))
+    )
+    next_col_count = max(
+        len(first_row.findAll('th')),
+        len(first_row.findAll('td'))
+    )
+    
+    # Tables are considered one if they have the same number of columns
+    return prev_col_count == next_col_count
+
+
+def concat_tables(prev_table: str, next_table: str) -> str:
+    # Remove the header from the next table if it matches the header of the previous table
+    prev_header = str(BeautifulSoup(prev_table, features="html.parser").findAll('tr')[0])
+    next_rows = [
+        str(row_tag)
+        for row_tag in BeautifulSoup(next_table, features="html.parser").findAll('tr')
+    ]
+    
+    if next_rows[0] == prev_header:
+        next_rows = next_rows[1:]
+    
+    # Combine the tables
+    combined_table = prev_table.replace('</table>', '') + ''.join(next_rows) + '</table>'
+    return combined_table
+      
     
 def make_toc_header(text: str, depth: int, max_len: int = 35) -> str:
     """
@@ -896,18 +989,23 @@ def docx_to_html(docx_path: str) -> tuple:
         # Document start default link
         f'<a href="#{handler.depth_anchor[1]}">{make_toc_header("[Начало документа]", 1)}</a><br>'
     ]
-    
+    tables_to_process = []
     for content in doc.iter_inner_content():
         if type(content) is docx.text.paragraph.Paragraph:
             if not content.text.strip():
                 continue
+            if tables_to_process:
+                html_table, table_links = handler.process_tables_batch(tables_to_process)
+                html_content.append(html_table)
+                toc_links.extend(table_links)
+                tables_to_process = []
+                
             html_paragraph, html_links = handler.process_paragraph(content)
             html_content.extend(html_paragraph)
             toc_links.extend(html_links)
+        
         elif type(content) is docx.table.Table:
-            html_table, table_links = handler.process_table(content)
-            html_content.append(html_table)
-            toc_links.extend(table_links)
+            tables_to_process.append(content)
         else:
             print(type(content), 'missed')
     return ''.join(html_content), ''.join(toc_links)
