@@ -11,6 +11,12 @@ WORKDIR /src
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Models load
+RUN pip install gdown
+RUN python3 -m gdown https://drive.google.com/uc?id=1vuVVl11N93AGKtCW7KxXxFcBh60GmCpF
+RUN apt install unzip
+RUN unzip model_dir.zip
+
 # Documentation
 # RUN pip install sphinx sphinx-autodoc
 # RUN make -C docs html
