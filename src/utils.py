@@ -124,15 +124,15 @@ ALIGNMENT = {
 }
 
 DEFAULT_LEVELS = [
-    {'@w:ilvl': '0', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1'}},
-    {'@w:ilvl': '1', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2'}},
-    {'@w:ilvl': '2', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3'}},
-    {'@w:ilvl': '3', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4'}},
-    {'@w:ilvl': '4', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5'}},
-    {'@w:ilvl': '5', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6'}},
-    {'@w:ilvl': '6', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7'}},
-    {'@w:ilvl': '7', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7.%8'}},
-    {'@w:ilvl': '8', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': '%1.%2.%3.%4.%5.%6.%7.%8.%9'}}
+    {'@w:ilvl': '0', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1'}},
+    {'@w:ilvl': '1', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2'}},
+    {'@w:ilvl': '2', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2.%3'}},
+    {'@w:ilvl': '3', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2.%3.%4'}},
+    {'@w:ilvl': '4', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2.%3.%4.%5'}},
+    {'@w:ilvl': '5', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2.%3.%4.%5.%6'}},
+    {'@w:ilvl': '6', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2.%3.%4.%5.%6.%7'}},
+    {'@w:ilvl': '7', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2.%3.%4.%5.%6.%7.%8'}},
+    {'@w:ilvl': '8', 'w:start': {'@w:val': '1'}, 'w:numFmt': {'@w:val': 'decimal'}, 'w:lvlText': {'@w:val': 'default %1.%2.%3.%4.%5.%6.%7.%8.%9'}}
 ]
 
 
@@ -564,7 +564,7 @@ class DocHandler:
         self.num_db.font_size += [run.font.size.pt for run in par.runs if run.font.size]
         
         tag = 'p'
-        if source not in ('HEADING', 'REGEX', 'APPENDIX') and num_prefix:
+        if source not in ('HEADING', 'REGEX', 'APPENDIX') and num_prefix and 'default' not in num_prefix:
             text = num_prefix + ' ' + html.escape(par.text)
         else:
             text = html.escape(par.text) 
