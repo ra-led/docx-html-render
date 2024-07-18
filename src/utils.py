@@ -473,9 +473,9 @@ class DocHandler:
         """
         self.xml = xmltodict.parse(doc.element.xml, process_namespaces=False)
         self.num_db = NumberingDB(doc)
-        self.depth = 0
+        self.depth = 1
         self.source = None
-        self.depth_anchor = {}
+        self.depth_anchor = {1: 'default-start-doc'}
         self.tables_cnt = 0
         self.page = 0
         self.chars_count = 0
@@ -548,9 +548,6 @@ class DocHandler:
         Returns:
             tuple: A tuple containing the HTML content and table of contents links.
         """
-        # count page
-        self.chars_count += len(par.text)
-        self.page = self.chars_count // self.avg_page_chars_count
             
         html_paragraph = []
         html_links = []
@@ -585,6 +582,10 @@ class DocHandler:
         if text.strip():
             self.last_pars.append(text)
             self.last_pars = self.last_pars[-2:]
+            
+        # count page
+        self.chars_count += len(par.text)
+        self.page = self.chars_count // self.avg_page_chars_count
         return html_paragraph, html_links
     
     def investigate_table(self, table: docx.table.Table) -> Union[tuple, None]:
@@ -887,11 +888,19 @@ def docx_to_html(docx_path: str) -> tuple:
     """
     doc = docx.Document(docx_path)
     handler = DocHandler(doc)
-    html_content = []
-    toc_links = []
+    html_content = [
+        # Document start default headrer
+        f'<div id="{handler.depth_anchor[1]}"></div>'
+    ]
+    toc_links = [
+        # Document start default link
+        f'<a href="#{handler.depth_anchor[1]}">{make_toc_header("[Начало документа]", 1)}</a><br>'
+    ]
     
     for content in doc.iter_inner_content():
         if type(content) is docx.text.paragraph.Paragraph:
+            if not content.text.strip():
+                continue
             html_paragraph, html_links = handler.process_paragraph(content)
             html_content.extend(html_paragraph)
             toc_links.extend(html_links)
