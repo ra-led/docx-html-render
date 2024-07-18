@@ -478,7 +478,7 @@ class DocHandler:
         self.depth_anchor = {}
         self.tables_cnt = 0
         self.page = 0
-        self.last_indent = 0
+        self.chars_count = 0
         self.last_pars = []
 
         try:
@@ -492,7 +492,8 @@ class DocHandler:
 
         self.max_frame_space = 7
         self.max_toc_pages = 10
-        self.max_pages = 1000
+        self.max_doc_pages = 1000
+        self.avg_page_chars_count = 1200
     
     def detect_toc_row(self, par: docx.text.paragraph.Paragraph) -> bool:
         if self.page > self.max_toc_pages:
@@ -500,7 +501,7 @@ class DocHandler:
         text = par.text.strip()
         match = re.search(r'(\d+)$', text)
         if match:
-            return int(match[0]) < self.max_pages
+            return int(match[0]) < self.max_doc_pages
         else:
             return False
 
@@ -547,13 +548,9 @@ class DocHandler:
         Returns:
             tuple: A tuple containing the HTML content and table of contents links.
         """
-        try:
-            p_xml = xmltodict.parse(par._p.xml, process_namespaces=False)
-            top_indent = float(p_xml['w:p']['w:pPr']['w:ind']['@w:hanging'])
-            self.page += self.last_indent > top_indent
-            self.last_indent = top_indent
-        except KeyError:
-            pass
+        # count page
+        self.chars_count += len(par.text)
+        self.page = self.chars_count // self.avg_page_chars_count
             
         html_paragraph = []
         html_links = []
@@ -608,6 +605,7 @@ class DocHandler:
             ])
         except (KeyError, TypeError):
             table_height = 0
+        
         if (table_height / self.height) < 0.8:
             return None
         merged = set()
@@ -617,6 +615,10 @@ class DocHandler:
             for j, cell in enumerate(row.cells):
                 if cell._element in merged:
                     continue
+                # count page
+                self.chars_count += len(cell.text)
+                self.page = self.chars_count // self.avg_page_chars_count
+                
                 c_xml = xmltodict.parse(cell._element.xml, process_namespaces=False)
                 try:
                     cell_width = int(c_xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
