@@ -159,7 +159,7 @@ class NumberingDB:
                 abstract_levels = self.num_xml['w:numbering']['w:abstractNum']
             except KeyError:
                 abstract_levels = []
-            if type(self.abstract_levels) is list:
+            if type(abstract_levels) is list:
                 self.levels = {
                     x['@w:abstractNumId']: x['w:lvl'] if type(x['w:lvl']) is list else [x['w:lvl']]
                     for x in abstract_levels
