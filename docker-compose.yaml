@@ -20,8 +20,6 @@ services:
     command: gunicorn -w 2 -b 0.0.0.0:5000 -t 600 "app:create_app()"
     ports:
       - "5000:5000"
-    volumes:
-      - ./model_dir:/src/model_dir
       
   # sphinx-docs:
   #   build: ./src
@@ -36,8 +34,6 @@ services:
       - 8000:8000
     environment: 
       <<: [*rabbit-env, *converter-env]
-    volumes:
-      - ./model_dir:/src/model_dir
     depends_on:
       - rabbitmq
 
@@ -47,8 +43,6 @@ services:
     restart: always
     environment: 
       <<: [*rabbit-env, *converter-env]
-    volumes:
-      - ./model_dir:/src/model_dir
     depends_on:
       - rabbitmq
 
@@ -59,5 +53,3 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: *rabbit-user
       RABBITMQ_DEFAULT_PASS: *rabbit-pass
-    volumes:
-      - ./model_dir:/src/model_dir
