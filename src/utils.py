@@ -1024,4 +1024,9 @@ def docx_to_html(docx_path: str) -> tuple:
             tables_to_process.append(content)
         else:
             print(type(content), 'missed')
+    # if table was not processed
+    if tables_to_process:
+        html_table, table_links = handler.process_tables_batch(tables_to_process)
+        html_content.append(html_table)
+        toc_links.extend(table_links)
     return ''.join(html_content), ''.join(toc_links)
