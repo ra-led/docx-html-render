@@ -1,6 +1,5 @@
 import os
 import asyncio
-import logging
 
 from aio_pika import Message, connect
 from typing import Annotated
@@ -10,7 +9,6 @@ from io import BytesIO, StringIO
 from utils import get_connection, ConverterProxy
 
 app = FastAPI()
-logger = logging.getLogger(__name__)
 
 converter = None
 
