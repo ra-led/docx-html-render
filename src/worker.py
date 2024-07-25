@@ -1,17 +1,15 @@
 import os
 import json
 import asyncio
-import logging
 
 from io import BytesIO
 
 from aio_pika import Message, connect
+from loguru import logger
 
 from utils import get_connection, doc_to_docx, docx_to_html
 from html_to_json import html_to_json
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 async def main():
     connection = await get_connection()
@@ -21,7 +19,7 @@ async def main():
     queue = await channel.declare_queue(os.environ.get('CONVERTER_QUEUE', 
         default='convert'))
 
-    logging.info("Waiting for tasks")
+    logger.info("Waiting for tasks")
     async with queue.iterator() as iterator:
         async for message in iterator:
             try:
@@ -51,7 +49,7 @@ async def main():
                     logger.info("Task complete")
 
             except Exception as e:
-                logging.exception("Processing error: "+str(e))
+                logger.exception("Processing error: "+str(e))
 
 if __name__ == '__main__':
     asyncio.run(main())
