@@ -1,9 +1,8 @@
 import json
-import logging
 
 from bs4 import BeautifulSoup
+from loguru import logger
 
-logger = logging.getLogger(__name__)
 html_header_tags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7']
 
 def _collect_table_content(table_tag):
