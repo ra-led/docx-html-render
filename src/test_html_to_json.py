@@ -2,8 +2,8 @@ import json
 import logging
 
 from html_to_json import html_to_json
+from loguru import logger
 
-logger = logging.getLogger(__name__)
 
 def test_header_to_json():
     result = html_to_json("<h1>Sample header</h1>")

@@ -2,7 +2,6 @@ import asyncio
 import os
 import string
 import uuid
-import logging
 import statistics
 from typing import List, Union
 from bs4 import BeautifulSoup
@@ -13,11 +12,11 @@ import docx
 import re
 import xmltodict
 import html
+from loguru import logger
 
 from ml import BERTTextClassifier
 
 
-logger = logging.getLogger(__name__)
 
 async def get_connection():
     """
@@ -97,7 +96,7 @@ class ConverterProxy:
             message (aio_pika.IncomingMessage): The incoming message from the RabbitMQ queue.
         """
         if message.correlation_id is None:
-            print(f"Bad message {message!r}")
+            logger.error(f"Bad message {message!r}")
             return
 
         future: asyncio.Future = self.futures.pop(message.correlation_id)
@@ -1028,7 +1027,7 @@ def docx_to_html(docx_path: str) -> tuple:
         elif type(content) is docx.table.Table:
             tables_to_process.append(content)
         else:
-            print(type(content), 'missed')
+            logger.warning(type(content), 'missed')
     # if table was not processed
     if tables_to_process:
         html_table, table_links = handler.process_tables_batch(tables_to_process)
