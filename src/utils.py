@@ -623,10 +623,15 @@ class DocHandler:
                 int(row['w:trPr']['w:trHeight']['@w:val'])
                 for row in t_xml['w:tbl']['w:tr']
             ])
+            table_width = sum([
+                int(col['@w:w'])
+                for col in t_xml['w:tbl']['w:tblGrid']['w:gridCol']
+            ])
         except (KeyError, TypeError):
             table_height = 0
+            table_width = 0
         
-        if (table_height / self.height) < 0.8:
+        if (table_height / self.height) < 0.8 and (table_width < self.width):
             return None
         merged = set()
         all_text_cells = []
@@ -748,6 +753,8 @@ class DocHandler:
                     text_cell = (cell_width / self.width) >= 0.8
                 except KeyError:
                     text_cell = False
+                if ignore and not text_cell:
+                    continue
                 if text_cell:
                     text = ''
                     for c_par in cell.paragraphs:
@@ -772,8 +779,6 @@ class DocHandler:
                         colspan += 1
                     else:
                         break
-                if ignore:
-                    continue
                 if i in text_rows and text_cell:
                     html_table += '</tr></table>'
                     if filled:
