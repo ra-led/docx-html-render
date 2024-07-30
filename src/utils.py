@@ -2,7 +2,6 @@ import asyncio
 import os
 import string
 import uuid
-import logging
 import statistics
 from typing import List, Union
 from bs4 import BeautifulSoup
@@ -13,11 +12,11 @@ import docx
 import re
 import xmltodict
 import html
+from loguru import logger
 
 from ml import BERTTextClassifier
 
 
-logger = logging.getLogger(__name__)
 
 async def get_connection():
     """
@@ -110,7 +109,7 @@ class ConverterProxy:
             message (aio_pika.IncomingMessage): The incoming message from the RabbitMQ queue.
         """
         if message.correlation_id is None:
-            print(f"Bad message {message!r}")
+            logger.error(f"Bad message {message!r}")
             return
 
         future: asyncio.Future = self.futures.pop(message.correlation_id)
@@ -636,10 +635,15 @@ class DocHandler:
                 int(row['w:trPr']['w:trHeight']['@w:val'])
                 for row in t_xml['w:tbl']['w:tr']
             ])
+            table_width = sum([
+                int(col['@w:w'])
+                for col in t_xml['w:tbl']['w:tblGrid']['w:gridCol']
+            ])
         except (KeyError, TypeError):
             table_height = 0
+            table_width = 0
         
-        if (table_height / self.height) < 0.8:
+        if (table_height / self.height) < 0.8 and (table_width < self.width):
             return None
         merged = set()
         all_text_cells = []
@@ -761,6 +765,8 @@ class DocHandler:
                     text_cell = (cell_width / self.width) >= 0.8
                 except KeyError:
                     text_cell = False
+                if ignore and not text_cell:
+                    continue
                 if text_cell:
                     text = ''
                     for c_par in cell.paragraphs:
@@ -785,8 +791,6 @@ class DocHandler:
                         colspan += 1
                     else:
                         break
-                if ignore:
-                    continue
                 if i in text_rows and text_cell:
                     html_table += '</tr></table>'
                     if filled:
@@ -1036,7 +1040,7 @@ def docx_to_html(docx_path: str) -> tuple:
         elif type(content) is docx.table.Table:
             tables_to_process.append(content)
         else:
-            print(type(content), 'missed')
+            logger.warning(type(content), 'missed')
     # if table was not processed
     if tables_to_process:
         html_table, table_links = handler.process_tables_batch(tables_to_process)

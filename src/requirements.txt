@@ -14,3 +14,4 @@ pytest-retry==1.6.3
 aspose-words==24.7.0
 torch==2.0.1
 transformers==4.42.4
+loguru==0.7.2

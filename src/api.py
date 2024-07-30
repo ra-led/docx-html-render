@@ -1,6 +1,5 @@
 import os
 import asyncio
-import logging
 
 from aio_pika import Message, connect
 from typing import Annotated
