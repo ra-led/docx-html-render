@@ -44,6 +44,9 @@ def doc_to_docx(in_stream, out_stream):
     doc = aw.Document(in_stream)
     doc.save(out_stream, aw.SaveFormat.DOCX)
 
+class FuturesLimitReachedException(Exception):
+    pass
+
 class ConverterProxy:
     """
     A proxy class to handle document conversion requests via RabbitMQ.
@@ -54,7 +57,9 @@ class ConverterProxy:
         Initializes the ConverterProxy instance.
         """
         self.initialized = False
+        self.initializing = False
         self.futures = {}
+        self.futures_limit = int(os.environ.get('MAX_CONVERTER_FUTURES', default='0'))
 
     async def convert(self, data: bytes):
         """
@@ -67,11 +72,19 @@ class ConverterProxy:
             bytes: The converted document data.
         """
         if not self.initialized:
-            self.initialized = True
+            self.initializing = True
             self.connection = await get_connection()
             self.channel = await self.connection.channel()
             self.callback_queue = await self.channel.declare_queue(exclusive=True)
             await self.callback_queue.consume(self.on_message, no_ack=True)
+            self.initialized = True
+            self.initializing = False
+
+        while self.initializing:
+            await asyncio.sleep(0.1)
+
+        if self.futures_limit > 0 and len(self.futures) >= self.futures_limit:
+            raise FuturesLimitReachedException()
 
         correlation_id = str(uuid.uuid4())
         loop = asyncio.get_running_loop()

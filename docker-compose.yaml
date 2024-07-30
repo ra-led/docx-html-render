@@ -12,6 +12,8 @@ x-converter-conf:
   environnment:
     &converter-env
     CONVERTER_QUEUE: convert
+    MAX_CONVERTER_FUTURES: 2
+  gunicorn-max-concurrency: &max-concurrency '4'
 
 
 services:
@@ -29,7 +31,7 @@ services:
 
   web-api:
     build: ./src
-    command: fastapi run api.py
+    command: ['uvicorn', '--limit-concurrency', *max-concurrency, '--host', '0.0.0.0', 'api:create_app']
     ports:
       - 8000:8000
     environment: 
