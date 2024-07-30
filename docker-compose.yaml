@@ -13,7 +13,7 @@ x-converter-conf:
     &converter-env
     CONVERTER_QUEUE: convert
     MAX_CONVERTER_FUTURES: 2
-  gunicorn-max-concurrency: &max-concurrency '4'
+  uvicorn-max-concurrency: &max-concurrency '4'
 
 
 services:
