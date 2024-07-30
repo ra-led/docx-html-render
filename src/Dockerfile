@@ -9,7 +9,7 @@ RUN python3 -m pip install --upgrade pip
 
 WORKDIR /src
 COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 # Models load
 RUN pip install gdown
