@@ -1,0 +1,1 @@
+from doc_parse.ooxml import DocHandlerfrom doc_parse.export import DocHTML
