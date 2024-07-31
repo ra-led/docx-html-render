@@ -73,8 +73,8 @@ class DocHandler:
         else:
             return False
 
-    def get_parents(self, depth) -> List:
-        return {k: v for k, v in self.depth_anchor.items() if k <= depth}
+    def get_parents(self) -> List:
+        return {k: v for k, v in self.depth_anchor.items() if k <= self.last_depth}
     
     def get_table_title(self) -> Node:
         """
@@ -84,21 +84,14 @@ class DocHandler:
             tuple: A tuple containing the title and anchor for the table.
         """
         regex_title = ' '.join(self.last_pars)
-        try:
-            # title starts with "таблица"
-            strat_idx = max(
-                regex_title.lower().rindex('таблица'),
-                regex_title.lower().rindex('т а б л и ц а')
-            )
-            title = regex_title[strat_idx:]
-        except ValueError:
-            try:
-                # title is last text
-                title = self.last_pars[-1]
-            except IndexError:
-                # no text to make title
-                title = 'Таблица'
-        title = title if title.strip() else 'Таблица'
+        if 'таблица' in regex_title:
+            title = regex_title[regex_title.lower().rindex('таблица')]
+        elif 'т а б л и ц а' in regex_title:
+            title = regex_title[regex_title.lower().rindex('т а б л и ц а')]
+        elif regex_title.strip():
+            title = regex_title
+        else:
+            title = 'Таблица'
         depth = self.last_depth  + 1
         table_node = Node(title, depth, 'TABLE')
         table_node._id = f'table{len(self.processed_content)}'
@@ -106,7 +99,7 @@ class DocHandler:
 
     def process_paragraph(self, par: docx.text.paragraph.Paragraph) -> tuple:
         """
-        Processes a paragraph to convert it to HTML.
+        Processes a text paragraph.
         
         Args:
             par (docx.text.paragraph.Paragraph): The paragraph to process.
@@ -127,10 +120,11 @@ class DocHandler:
         # Link node
         if par.node.depth:
             par.node._id = self.insert_node(par.node)
-        par.node.parents = self.get_parents(par.node.depth)
+        par.node.parents = self.get_parents()
         # Count page
         self.chars_count += len(par.ctext)
         # Store processed paragraph
+        # par.ctext = f'DBG [{par.node.source}] ' + par.ctext
         self.processed_content.append(par)
 
     def process_table(self, table: docx.table.Table) -> tuple:
@@ -159,23 +153,24 @@ class DocHandler:
                 if visible_cells:
                     subtable.rows.append(visible_cells)
             else:
-                # Close table, store if not empty
-                if not subtable.empty():
-                    self.append_table(subtable)
+                # Close table
+                self.append_table(subtable)
                 # Process cell paragraphes
                 text_cell = [cell for cell in row if cell.is_text][0]
                 for c_par in text_cell.paragraphs:
                     self.process_paragraph(c_par)
                 # Create new table
                 subtable = TableView(self.get_table_title())
-        # Close last opened table, store if not empty
-        if not subtable.empty():
-            self.append_table(subtable)
+        # Close last opened table
+        self.append_table(subtable)
             
     def append_table(self, table: TableView):
+        if table.empty():
+            return
         if table_extend(self.processed_content[-1], table):
             self.processed_content[-1] = concat_tables(self.processed_content[-1], table)
         else:
+            table.node.parents = self.get_parents()
             self.processed_content.append(table)
 
 

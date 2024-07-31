@@ -188,14 +188,15 @@ class NumberingDB:
         Returns:
             tuple: A tuple containing the numbering prefix, depth, and source.
         """
-        num_prefix, depth = find_manual_numbering(par.ctext, self.default_levels)
-        if self.stop_symbs_in_prefix(num_prefix) or self.stop_symbs_in_start(par.ctext):
-            return par
-        if not self.check_heading_style(par) and depth == 1:
-            return par
-        if not self.norm_numeration_clf(par.ctext):
-            return par
-        par.node = Node(num_prefix, depth, 'REGEX')
+        num_prefix, depth, cleaned_text = find_manual_numbering(par.ctext, self.default_levels)
+        if depth:
+            if self.stop_symbs_in_start(cleaned_text):
+                return par
+            if not self.check_heading_style(par) and depth == 1:
+                return par
+            if not self.norm_numeration_clf(par.ctext):
+                return par
+            par.node = Node(num_prefix, depth, 'REGEX')
         return par
 
     def numerize_by_heading(self, par: ParHandler) -> ParHandler:
@@ -367,7 +368,7 @@ def find_manual_numbering(text: str, max_levels: int) -> tuple:
         depth += 1
         text = re.sub(numbering_pattern, '', text)
         num_prefix += match[0]
-    return num_prefix, depth
+    return num_prefix, depth, text.strip()
 
             
 def int_to_roman(num: int) -> str:

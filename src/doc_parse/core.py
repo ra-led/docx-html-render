@@ -34,7 +34,8 @@ class ParHandler:
         return max(font_sizes) if font_sizes else None
     
     def get_par_bold_option(self, par:  docx.text.paragraph.Paragraph):
-        return any([par.style.font.bold] + [run.bold for run in par.runs])
+        runs_bold_frac = sum([run.bold is True for run in par.runs]) / (len(par.runs) + 1)
+        return par.style.font.bold is True or runs_bold_frac > 0.6
     
     def get_full_text(self):
         if self.node.source not in ('HEADING', 'REGEX', 'APPENDIX') \
