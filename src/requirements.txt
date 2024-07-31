@@ -1,3 +1,4 @@
+aiohttp==3.9.5
 Flask==2.0.1
 gunicorn
 werkzeug==2.0.3
@@ -8,6 +9,8 @@ aio-pika==9.4.1
 python-multipart==0.0.9
 beautifulsoup4==4.12.3
 pytest==8.2.2 
+pytest-asyncio==0.23.8
+pytest-retry==1.6.3
 aspose-words==24.7.0
 torch==2.0.1
 transformers==4.42.4
