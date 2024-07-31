@@ -53,6 +53,8 @@ class TableHandler:
         self.xml = xmltodict.parse(table._element.xml, process_namespaces=False)
         self.height = self.get_table_height(self.xml)
         self.width = self.get_table_width(self.xml)
+        self.cols_count = len(self.table.columns)
+        self.rows_count = len(self.table.rows)
         self.src_page_width = src_page_width
         self.src_page_height = src_page_height
         self.text_cell_min_width = text_cell_min_width
@@ -60,9 +62,9 @@ class TableHandler:
         self.min_frame_columns = min_frame_columns
         self.merged = set()
         self.rows = []
-        self.text_col_starts = -1
+        self.text_col_starts = self.cols_count
         self.text_col_ends = -1
-        self.text_row_starts = -1
+        self.text_row_starts = self.rows_count
         self.text_row_ends = -1
         
         self.investigate()
@@ -90,19 +92,19 @@ class TableHandler:
                         break
                 if rowspan > 1 or colspan > 1:
                     self.merged.add(cell._element)
-                cell_handler = CellHandler(cell, rowspan, colspan)
+                cell_handler = CellHandler(cell, rowspan, colspan, j, i)
                 
                 # Detect text (for frames) cell
-                cell_width = cell.width or 0
-                cell_handler.is_text = cell_width / self.src_page_width > self.text_cell_min_width
+                cell_handler.is_text = cell_handler.width / self.src_page_width > self.text_cell_min_width
                 if cell_handler.is_text:
-                    self.text_row_starts = max(self.text_row_starts, i)
+                    self.text_row_starts = min(self.text_row_starts, i)
                     self.text_row_ends = max(self.text_row_ends, i + rowspan)
-                    self.text_col_starts = max(self.text_col_starts, j)
+                    self.text_col_starts = min(self.text_col_starts, j)
                     self.text_col_ends = max(self.text_col_ends, j + colspan)
             
-            cells.append(cell_handler)
-        self.rows.append(cells)
+                # cell_handler.ctext = f'DBG [COLS / MIN_COLS {len(self.table.columns)} / {self.min_frame_columns}; PAGE W = {self.src_page_width}; PAGE H = {self.src_page_height};TABLE W = {self.width}; TABLE H = {self.height}; XML W = {cell_handler.width}; TEXT = {cell_handler.is_text}; {(self.text_row_starts, self.text_row_ends, self.text_col_starts, self.text_col_ends)}, X = {cell_handler.x}, Y = {cell_handler.y}]' + cell_handler.ctext
+                cells.append(cell_handler)
+            self.rows.append(cells)
 
     def detect_frame(self):
         # Table hight far from page height and page is portrait
@@ -110,9 +112,9 @@ class TableHandler:
             and (self.width < self.src_page_width):
             return False
         # Table hcols count lower than min cols count in frame
-        if len(self.table.columns) < self.min_frame_columns:
+        if self.cols_count < self.min_frame_columns:
             return False
-        return self.text_row_starts > 0
+        return self.text_row_starts >= 0
 
     def get_table_height(self, xml):
         try:
@@ -128,7 +130,9 @@ class TableHandler:
 
         
 class CellHandler:
-    def __init__(self, cell, rowspan: int, colspan: int):
+    def __init__(self, cell, rowspan: int, colspan: int, x: int, y: int):
+        self.x = x
+        self.y = y
         self.paragraphs = cell.paragraphs
         self.xml = xmltodict.parse(cell._element.xml, process_namespaces=False)
         try:
@@ -149,7 +153,7 @@ class TableView:
     def empty(self):
         n_chars = 0
         for r in self.rows:
-            for c in r.cells:
+            for c in r:
                 n_chars += len(c.ctext)
         return n_chars == 0
     

@@ -132,30 +132,10 @@ class DocHandler:
         self.chars_count += len(par.ctext)
         # Store processed paragraph
         self.processed_content.append(par)
-        
-    def process_framed_table(self, table: TableHandler):
-        subtable = TableView(self.get_table_title())
-        for i, row in enumerate(table.rows[table.text_row_starts: table.text_row_ends]):
-            if not any([cell.is_text for cell in row]):
-                subtable.rows.append(
-                    row[table.text_col_starts: table.text_col_ends]
-                )
-            else:
-                # Close table, store if not empty
-                if not subtable.empty():
-                    self.append_table(subtable)
-                # Create new table
-                subtable = TableView(self.get_table_title())
-                # Process cell paragraphes
-                for c_par in row[table.text_col_starts].paragraphs:
-                    self.process_paragraph(c_par)
-        # Close table, store if not empty
-        if not subtable.empty():
-            self.append_table(subtable)
 
     def process_table(self, table: docx.table.Table) -> tuple:
         """
-        Processes a table to convert it to HTML.
+        Processes a table.
         
         Args:
             table (docx.table.Table): The table to process.
@@ -164,11 +144,32 @@ class DocHandler:
             tuple: A tuple containing the HTML content and table of contents links.
         """
         table = TableHandler(table, self.width, self.height)
-        if table.has_frame:
-            self.process_framed_table(table)
-        else:
-            subtable = TableView(self.get_table_title())
-            subtable.rows = table.rows
+        subtable = TableView(self.get_table_title())
+        for i, row in enumerate(table.rows):
+            if not any([cell.is_text for cell in row]):
+                if table.has_frame:
+                    # Find visible cells inside frame borders
+                    visible_cells = [
+                        cell for cell in row
+                        if table.text_col_starts <= cell.x < table.text_col_ends \
+                            and table.text_row_starts <= cell.y < table.text_row_ends
+                    ]
+                else:
+                    visible_cells = row
+                if visible_cells:
+                    subtable.rows.append(visible_cells)
+            else:
+                # Close table, store if not empty
+                if not subtable.empty():
+                    self.append_table(subtable)
+                # Process cell paragraphes
+                text_cell = [cell for cell in row if cell.is_text][0]
+                for c_par in text_cell.paragraphs:
+                    self.process_paragraph(c_par)
+                # Create new table
+                subtable = TableView(self.get_table_title())
+        # Close last opened table, store if not empty
+        if not subtable.empty():
             self.append_table(subtable)
             
     def append_table(self, table: TableView):

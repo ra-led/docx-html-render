@@ -51,7 +51,7 @@ class DocHTML:
                 else:
                     cell_tag = 'td'
                 cell_text = '<br>'.join([t for t in cell.ctext.split('\n')])
-                html_table += f'<{cell_tag}>{cell_text}</{cell_tag}>'
+                html_table += f'<{cell_tag} rowspan="{cell.rowspan}" colspan="{cell.colspan}">{cell_text}</{cell_tag}>'
             html_table += '</tr>'
         html_table += '</table>'
         self.html_content.append(html_table)
