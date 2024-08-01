@@ -167,6 +167,7 @@ class DocHandler:
     def append_table(self, table: TableView):
         if table.empty():
             return
+        table.clean()
         if table_extend(self.processed_content[-1], table):
             self.processed_content[-1] = concat_tables(self.processed_content[-1], table)
         else:

@@ -158,6 +158,14 @@ class TableView:
                 n_chars += len(c.ctext)
         return n_chars == 0
     
+    def clean(self):
+        # Reemove empty cols
+        filled_cols = [cell.x for cell in self.rows[0] if cell.ctext]
+        self.rows = [
+            [cell for cell in row if cell.x in filled_cols]
+            for row in self.rows
+        ]
+    
 
 class DocRoot:
     def __init__(self):
