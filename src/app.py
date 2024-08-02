@@ -1,10 +1,10 @@
 import json
 import os
-import traceback
-from flask import Flask, render_template, request, redirect, send_file
 import tempfile
-from utils import docx_to_html
-from html_to_json import html_to_json
+import traceback
+import docx
+from flask import Flask, render_template, request, redirect, send_file
+from doc_parse import DocHandler, DocHTML, DocJSON
 
 
 def create_app():
@@ -21,25 +21,38 @@ def create_app():
             if file.filename == '' or not file.filename.endswith(('.doc', '.docx')):
                 return redirect(request.url)
             if file:
-                # Convert DOC to HTML
+                # Read DOC
                 temp_file = tempfile.NamedTemporaryFile(delete=False)
                 file.save(temp_file.name)
-                html, toc = docx_to_html(temp_file.name)
+                
+                doc = docx.Document(temp_file.name)
+                handler = DocHandler(doc)
+                
+                # Convert to HTML
+                html_converter = DocHTML()
+                html_content, toc_links = html_converter.get_html(handler)
+
                 os.unlink(temp_file.name)
 
-                # Convert HTML to JSON
+                # Convert to JSON
                 try:
-                    json_data = html_to_json(html)
+                    json_converter = DocJSON()
+                    json_content = json_converter.get_json(handler)
                 except Exception as ex:
                     tb = ''.join(
                         traceback.TracebackException.from_exception(ex).format()
                     )
-                    json_data = json.dumps({'result': 'Failed', 'traceback': tb})
+                    json_content = json.dumps({'result': 'Failed', 'traceback': tb})
                 json_file_path = os.path.join(app.config['UPLOAD_FOLDER'], 'output.json')
                 with open(json_file_path, 'w') as json_file:
-                    json_file.write(json_data)
+                    json_file.write(json_content)
 
-                return render_template('result.html', html_content=html, toc_links=toc, json_file_path=json_file_path)
+                return render_template(
+                    'result.html',
+                    html_content=html_content,
+                    toc_links=toc_links,
+                    json_file_path=json_file_path
+                )
         return render_template('upload.html')
 
     @app.route('/download_json')

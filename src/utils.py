@@ -1,11 +1,8 @@
 import asyncio
 import os
 import uuid
-import aspose.words as aw
 from aio_pika import Message, connect
-import docx
 from loguru import logger
-from doc_parse import DocHandler, DocHTML
 
 
 async def get_connection():
@@ -94,32 +91,3 @@ class ConverterProxy:
 
         future: asyncio.Future = self.futures.pop(message.correlation_id)
         future.set_result(message.body)
-
-
-def doc_to_docx(in_stream, out_stream):
-    """
-    Converts a .doc file to a .docx file using Aspose.Words.
-
-    Args:
-        in_stream (io.BytesIO): The input stream containing the .doc file.
-        out_stream (io.BytesIO): The output stream to write the .docx file.
-    """
-    doc = aw.Document(in_stream)
-    doc.save(out_stream, aw.SaveFormat.DOCX)
-
-
-def docx_to_html(docx_path: str) -> tuple:
-    """
-    Converts a DOCX document to HTML.
-    
-    Args:
-        docx_path (str): The path to the DOCX file.
-    
-    Returns:
-        tuple: A tuple containing the HTML content and table of contents links.
-    """
-    doc = docx.Document(docx_path)
-    handler = DocHandler(doc)
-    converter = DocHTML()
-    
-    return converter.get_html(handler)

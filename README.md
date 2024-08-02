@@ -83,27 +83,24 @@
 7. **Формирование**: После обработки всего содержимого, документ готов для экспорта в HTML или JSON.
 
 ## Пример использования
-Этот пример демонстрирует, как загрузить документ и обработать его с помощью `DocHandler`. После вызова `process`, документ будет обработан, и его содержимое будет доступно для дальнейшей обработки или экспорта в HTML или JSON.
-
-```python
-import docx
-from doc_parse.ooxml import DocHandler
-
-# Загрузка документа
-doc = docx.Document('path_to_docx')
-
-# Инициализация обработчика
-handler = DocHandler(doc)
-
-# Обработка документа
-handler.process()
-```
-  
 Экспорт в HTML
 
 ```python
+from doc_parse import DocHandler, DocHTML
+
 handler = DocHandler(doc)
 converter = DocHTML()
 
-html, toc_links = converter.get_html(handler)
+html_content, toc_links = converter.get_html(handler)
+```
+
+Экспорт в JSON
+
+```python
+from doc_parse import DocHandler, DocJSON
+
+handler = DocHandler(doc)
+converter = DocJSON()
+
+json_content = converter.get_html(handler)
 ```

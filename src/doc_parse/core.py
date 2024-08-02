@@ -103,7 +103,7 @@ class TableHandler:
                     self.text_col_starts = min(self.text_col_starts, j)
                     self.text_col_ends = max(self.text_col_ends, j + colspan)
             
-                # cell_handler.ctext = f'DBG [COLS / MIN_COLS {len(self.table.columns)} / {self.min_frame_columns}; PAGE W = {self.src_page_width}; PAGE H = {self.src_page_height};TABLE W = {self.width}; TABLE H = {self.height}; XML W = {cell_handler.width}; TEXT = {cell_handler.is_text}; {(self.text_row_starts, self.text_row_ends, self.text_col_starts, self.text_col_ends)}, X = {cell_handler.x}, Y = {cell_handler.y}]' + cell_handler.ctext
+                # cell_handler.ctext = f'DBG [COLS / MIN_COLS {len(self.table.columns)} / {self.min_frame_columns}; PAGE W = {self.src_page_width}; PAGE H = {self.src_page_height};TABLE W = {self.width}; TABLE H = {self.height}; XML W = {cell_handler.width}; TEXT = {cell_handler.is_text}; {(self.text_row_starts, self.text_row_ends, self.text_col_starts, self.text_col_ends)}, X = {cell_handler.x}: {cell_handler.colspan}, Y = {cell_handler.y}: {cell_handler.rowspan}]' + cell_handler.ctext
                 cells.append(cell_handler)
             self.rows.append(cells)
 
@@ -159,15 +159,22 @@ class TableView:
         return n_chars == 0
     
     def clean(self):
-        # Reemove empty cols
-        filled_cols = [cell.x for cell in self.rows[0] if cell.ctext]
+        # Reemove empty rows
         self.rows = [
-            [cell for cell in row if cell.x in filled_cols]
+            row for row in self.rows
+            if any([len(cell.ctext) > 0 for cell in row])
+        ]
+        # Reemove empty cols
+        left_filled_col = min([cell.x for cell in self.rows[0] if cell.ctext])
+        right_filled_col = max([cell.x + cell.colspan for cell in self.rows[0] if cell.ctext])
+        self.rows = [
+            [cell for cell in row if left_filled_col <= cell.x < right_filled_col]
             for row in self.rows
         ]
     
 
-class DocRoot:
+class DocRoot(ParHandler):
     def __init__(self):
         self.node = Node('[Начало документа]', 1, 'ROOT')
         self.node._id = 'default-start-doc'
+        self.ctext = ''
