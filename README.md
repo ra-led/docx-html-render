@@ -1,40 +1,48 @@
-## Запуск полного стэка сервиса
+# Запуск
 
-1. Build the Docker image:
+1. Скачать репозиторий и перейти в корневой католог репо:
+   ```bash
+   git clone https://github.com/ra-led/docx-html-render.git
+   cd docx-html-render
+   ```
+
+2. Собрать Docker образы:
    ```bash
    docker-compose build
    ```
 
-2. Run the Flask application:
+3. Запустить полный стэк сервисов:
    ```bash
-   docker-compose up
+   docker-compose up -d
    ```
    
 Веб приложение будет доступно по адресу `http://localhost:5000`.
 
-# Модуль для парсинга документов .docx
+# Модуль для парсинга .docx документов doc_parse
 
 Этот модуль предназначен для парсинга документов формата .docx и преобразования их содержимого в HTML. В данном описании представлен обзор работы модуля, включая основные классы и функции, используемые для обработки документов.
 
-## Структура модуля
+## Структура модуля `doc_parse`
 
 Модуль состоит из следующих файлов:
 
-- `__init__.py`
-- `core.py`
-- `ml.py`
-- `numbering.py`
-- `ooxml.py`
-- `export.py`
+- `doc_parse/__init__.py`
+- `doc_parse/core.py`
+- `doc_parse/ml.py`
+- `doc_parse/numbering.py`
+- `doc_parse/ooxml.py`
+- `doc_parse/export_html.py`
+- `doc_parse/export_json.py`
 
 ## Описание файлов
 
 ### `__init__.py`
 
-Этот файл инициализирует модуль и импортирует основные классы из других файлов:
+Этот модуль предоставляет функции для конвертации документов различных форматов. Он включает в себя три основные функции:
 
-- `DocHandler` из `ooxml.py` для обработки документа.
-- `DocHTML` из `export.py` для экспорта документа в HTML.
+- `doc_to_docx`: Преобразует файл формата .doc в формат .docx с использованием библиотеки Aspose.Words. Может быть использован для обновления старых документов .doc до более современного формата .docx.
+- `docx_to_html`: Преобразует документ формата .docx в HTML. Полезно для отображения документов в веб-браузерах или интеграции с веб-приложениями.
+- `docx_to_json`: Преобразует документ формата .docx в форматированный, согласно спецификации,  JSON. 
 
 ### `core.py`
 
@@ -69,6 +77,50 @@
 - `table_extend`: Определяет, могут ли две таблицы быть объединены.
 - `concat_tables`: Объединяет две таблицы.
 
+## Пример использования
+Экспорт в HTML
+
+```python
+import docx
+from doc_parse import DocHandler, DocHTML
+
+doc = docx.Document(path_to_docx_file)
+handler = DocHandler(doc)
+converter = DocHTML()
+
+html_content, toc_links = converter.get_html(handler)
+```
+
+Экспорт в JSON
+
+```python
+import docx
+from doc_parse import DocHandler, DocJSON
+
+doc = docx.Document(path_to_docx_file)
+handler = DocHandler(doc)
+converter = DocJSON()
+
+json_content = converter.get_html(handler)
+```
+
+Экспорт в HTML и JSON (используется один DocHandler, чтобы избежать повторной обработки документа)
+
+```python
+import docx
+from doc_parse import DocHandler, DocHTML, DocJSON
+
+doc = docx.Document(path_to_docx_file)
+handler = DocHandler(doc)
+
+# Convert to HTML
+html_converter = DocHTML()
+html_content, toc_links = html_converter.get_html(handler)
+
+json_converter = DocJSON()
+json_content = json_converter.get_json(handler)
+```
+
 ## Ход процесса парсинга
 
 1. **Импортирование документа**: Используется библиотека `docx` для загрузки документа.
@@ -81,51 +133,6 @@
 5. **Обработка нумерации и стилей**: Используется `NumberingDB` для обработки нумерации и стилей параграфов (более подробно описано ниже).
 6. **Классификация текста**: При необходимости используется `BERTTextClassifier` для классификации текста.
 7. **Формирование**: После обработки всего содержимого, документ готов для экспорта в HTML или JSON.
-
-## Пример использования
-Экспорт в HTML
-
-```python
-from doc_parse import DocHandler, DocHTML
-
-handler = DocHandler(doc)
-converter = DocHTML()
-
-html_content, toc_links = converter.get_html(handler)
-```
-
-Экспорт в JSON
-
-```python
-from doc_parse import DocHandler, DocJSON
-
-handler = DocHandler(doc)
-converter = DocJSON()
-
-json_content = converter.get_html(handler)
-```
-
-Экспорт в HTML и JSON (используется один DocHandler, чтобы избежать повторной обработки документа)
-
-```python
-from doc_parse import DocHandler, DocHTML, DocJSON
-
-                doc = docx.Document(temp_file.name)
-                handler = DocHandler(doc)
-                
-                # Convert to HTML
-                html_converter = DocHTML()
-                html_content, toc_links = html_converter.get_html(handler)
-
-                os.unlink(temp_file.name)
-
-                # Convert to JSON
-                try:
-                    json_converter = DocJSON()
-                    json_content = json_converter.get_json(handler)
-
-json_content = converter.get_html(handler)
-```
 
 ## Расчет нумерации с NumberingDB
 ### Инициализация класса `NumberingDB`
@@ -199,11 +206,12 @@ json_content = converter.get_html(handler)
   - Определяет нумерацию в текстовом префиксе параграфа.
   - Проверяет наличие стоп-символов в начале текста.
   - Проверяет, является ли параграф заголовком.
-  - Проверяет результат классификатора для нормализации нумерации.
+  - Проверяет результат классификатора - является ли текст параграфа нумерованным заголовком.
 
 - **`numerize_by_heading`**:
   - Проверяет, является ли параграф заголовком.
-  - Проверяет результат классификатора для нормализации заголовков.
+  - Проверяет результат классификатора - является ли текст параграфа заголовком.
 
 - **`numerize_by_appendix`**:
   - Определяет, является ли параграф заголовком приложения.
+
