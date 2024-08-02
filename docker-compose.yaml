@@ -39,7 +39,7 @@ services:
     depends_on:
       - rabbitmq
 
-  docx-to-html-worker:
+  docx-to-json-worker:
     build: ./src
     command: python3 worker.py
     restart: always
