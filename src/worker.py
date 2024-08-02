@@ -8,29 +8,29 @@ from utils import get_connection
 
 
 async def process_message(message, exchange):
-    logger.info(f"Received task (reply to: {message.reply_to})")
+    logger.info(f"Received task (reply to: {message.reply_to}, correlation_id: {message.correlation_id})")
     
     try:
-        logger.info("Starting conversion to JSON")
+        logger.info(f"Starting conversion to JSON (correlation_id: {message.correlation_id})")
         converted = docx_to_json(BytesIO(message.body))
     except Exception as e:
-        logger.exception("Error during direct conversion to JSON")
-        logger.info("Starting conversion from DOC to DOCX")
+        logger.exception(f"Error during direct conversion to JSON (correlation_id: {message.correlation_id})")
+        logger.info(f"Starting conversion from DOC to DOCX (correlation_id: {message.correlation_id})")
         doc = BytesIO()
         try:
             doc_to_docx(BytesIO(message.body), doc)
         except Exception as e:
-            logger.exception("Error during conversion from DOC to DOCX")
+            logger.exception(f"Error during conversion from DOC to DOCX (correlation_id: {message.correlation_id})")
             return
         doc.seek(0)
-        logger.info("Starting conversion from DOCX to JSON")
+        logger.info(f"Starting conversion from DOCX to JSON (correlation_id: {message.correlation_id})")
         try:
             converted = docx_to_json(doc)
         except Exception as e:
-            logger.exception("Error during conversion from DOCX to JSON")
+            logger.exception(f"Error during conversion from DOCX to JSON (correlation_id: {message.correlation_id})")
             return
     
-    logger.info("Conversion completed")
+    logger.info(f"Conversion completed (correlation_id: {message.correlation_id})")
     
     await exchange.publish(
         Message(
@@ -39,8 +39,8 @@ async def process_message(message, exchange):
         ),
         routing_key=message.reply_to
     )
-    logger.info("Message published back to exchange")
-    logger.info("Task complete")
+    logger.info(f"Message published back to exchange (correlation_id: {message.correlation_id})")
+    logger.info(f"Task complete (correlation_id: {message.correlation_id})")
 
 
 async def main():
@@ -64,7 +64,7 @@ async def main():
                                 async with message.process(requeue=False):
                                     await process_message(message, exchange)
                             except Exception as e:
-                                logger.exception("Processing error")
+                                logger.exception(f"Processing error (correlation_id: {message.correlation_id})")
 
     except Exception as e:
         logger.exception("Main error")
