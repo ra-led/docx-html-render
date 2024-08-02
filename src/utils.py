@@ -49,17 +49,20 @@ class ConverterProxy:
         """
         if not self.initialized:
             self.initializing = True
+            logger.info("Initializing ConverterProxy...")
             self.connection = await get_connection()
             self.channel = await self.connection.channel()
             self.callback_queue = await self.channel.declare_queue(exclusive=True)
             await self.callback_queue.consume(self.on_message, no_ack=True)
             self.initialized = True
             self.initializing = False
+            logger.info("ConverterProxy initialized.")
 
         while self.initializing:
             await asyncio.sleep(0.1)
 
         if self.futures_limit > 0 and len(self.futures) >= self.futures_limit:
+            logger.error("Futures limit reached.")
             raise FuturesLimitReachedException()
 
         correlation_id = str(uuid.uuid4())
@@ -68,6 +71,7 @@ class ConverterProxy:
 
         self.futures[correlation_id] = future
 
+        logger.info(f"Sending conversion request with correlation_id: {correlation_id}")
         await self.channel.default_exchange.publish(
             Message(
                 data,
@@ -89,5 +93,6 @@ class ConverterProxy:
             logger.error(f"Bad message {message!r}")
             return
 
+        logger.info(f"Received message with correlation_id: {message.correlation_id}")
         future: asyncio.Future = self.futures.pop(message.correlation_id)
         future.set_result(message.body)
