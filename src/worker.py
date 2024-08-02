@@ -1,56 +1,60 @@
-import os
-import json
 import asyncio
-
 from io import BytesIO
-
+import os
 from aio_pika import Message, connect
 from loguru import logger
-
-from utils import get_connection, doc_to_docx, docx_to_html
-from html_to_json import html_to_json
+from doc_parse import doc_to_docx, docx_to_json
+from utils import get_connection
 
 
 async def main():
-    connection = await get_connection()
-    channel = await connection.channel()
-    exchange = channel.default_exchange
-
-    queue = await channel.declare_queue(os.environ.get('CONVERTER_QUEUE', 
-        default='convert'))
-
-    logger.info("Waiting for tasks")
-    async with queue.iterator() as iterator:
-        async for message in iterator:
-            try:
-                async with message.process(requeue=False):
-                    logger.info(f"Received task (reply to: {message.reply_to})")
-                    try:
-                        html, toc = docx_to_html(BytesIO(message.body))
-                        converted = html_to_json(html)
-                    except:
-                        doc = BytesIO()
-                        doc_to_docx(BytesIO(message.body), doc)
-                        doc.seek(0)
-                        html, toc = docx_to_html(doc)
-                        converted = filter(lambda el: 
-                                                not (el['content-type'] == 'text' 
-                                                and 'evaluation copy of Aspose.Words' in el['content']), 
-                                            json.loads(html_to_json(html)))
-                        converted = json.dumps(list(converted))
-
-                    await exchange.publish(
+    try:
+        connection = await get_connection()
+        logger.info("Connection to RabbitMQ established")
+        
+        channel = await connection.channel()
+        logger.info("Channel opened")
+        
+        exchange = channel.default_exchange
+        
+        queue = await channel.declare_queue(os.environ.get('CONVERTER_QUEUE', default='convert'))
+        logger.info("Queue declared")
+        
+        logger.info("Waiting for tasks")
+        async with queue.iterator() as iterator:
+            async for message in iterator:
+                try:
+                    async with message.process(requeue=False):
+                        logger.info(f"Received task (reply to: {message.reply_to})")
+                        
+                        try:
+                            logger.info("Starting conversion to JSON")
+                            converted = docx_to_json(BytesIO(message.body))
+                        except:
+                            logger.info("Starting conversion from DOC to DOCX")
+                            doc = BytesIO()
+                            doc_to_docx(BytesIO(message.body), doc)
+                            doc.seek(0)
+                            logger.info("Starting conversion from DOCX to JSON")
+                            converted = docx_to_json(doc)
+                        
+                        logger.info("Conversion completed")
+                        
+                        await exchange.publish(
                             Message(
                                 body=converted.encode(),
                                 correlation_id=message.correlation_id
                             ),
                             routing_key=message.reply_to
-                    )
-                    logger.info("Task complete")
+                        )
+                        logger.info("Message published back to exchange")
+                        logger.info("Task complete")
 
-            except Exception as e:
-                logger.exception("Processing error: "+str(e))
+                except Exception as e:
+                    logger.exception("Processing error: " + str(e))
+
+    except Exception as e:
+        logger.exception("Main error: " + str(e))
 
 if __name__ == '__main__':
     asyncio.run(main())
-
