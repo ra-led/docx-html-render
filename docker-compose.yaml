@@ -18,7 +18,7 @@ x-converter-conf:
 
 services:
   docx-to-html:
-    build: ./src
+    image: doc-parse:latest
     command: gunicorn -w 2 -b 0.0.0.0:5000 -t 600 "app:create_app()"
     ports:
       - "5000:5000"
@@ -30,7 +30,7 @@ services:
   #     - "7000:7000"
 
   web-api:
-    build: ./src
+    image: doc-parse:latest
     command: ['uvicorn', '--limit-concurrency', *max-concurrency, '--host', '0.0.0.0', 'api:create_app']
     ports:
       - 8000:8000
@@ -40,7 +40,7 @@ services:
       - rabbitmq
 
   docx-to-json-worker:
-    build: ./src
+    image: doc-parse:latest
     command: python3 worker.py
     restart: always
     environment: 

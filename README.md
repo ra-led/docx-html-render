@@ -6,9 +6,9 @@
    cd docx-html-render
    ```
 
-2. Собрать Docker образы:
+2. Собрать Docker образ:
    ```bash
-   docker-compose build
+   docker build -t doc-parse:latest ./src
    ```
 
 3. Запустить полный стэк сервисов:
