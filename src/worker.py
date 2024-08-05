@@ -54,7 +54,7 @@ async def main():
                 exchange = channel.default_exchange
                 
                 queue_name = os.environ.get('CONVERTER_QUEUE', default='convert')
-                queue = channel.declare_queue(queue_name)
+                queue = await channel.declare_queue(queue_name)  # Await the coroutine
                 logger.info("Queue declared")
                 
                 logger.info("Waiting for tasks")
