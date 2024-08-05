@@ -49,17 +49,19 @@ class ParHandler:
 class TableHandler:
     def __init__(self, table: docx.table.Table, src_page_width: int, src_page_height: int,
                  text_cell_min_width: float = 0.8, frame_table_min_hight: float = 0.8,
-                 min_frame_columns: int = 7):
+                 min_frame_columns: int = 7, frame_footer_min_indent: float = 0.82):
         self.table = table
         self.xml = xmltodict.parse(table._element.xml, process_namespaces=False)
         self.height = self.get_table_height(self.xml)
         self.width = self.get_table_width(self.xml)
+        # Check page is portrait or album
+        self.src_page_width = src_page_width if self.width <= src_page_width else src_page_height
+        self.src_page_height = src_page_height if self.width <= src_page_width else src_page_width
         self.cols_count = len(self.table.columns)
         self.rows_count = len(self.table.rows)
-        self.src_page_width = src_page_width
-        self.src_page_height = src_page_height
         self.text_cell_min_width = text_cell_min_width
         self.frame_table_min_hight = frame_table_min_hight
+        self.frame_footer_min_indent = frame_footer_min_indent
         self.min_frame_columns = min_frame_columns
         self.merged = set()
         self.rows = []
@@ -67,9 +69,13 @@ class TableHandler:
         self.text_col_ends = -1
         self.text_row_starts = self.rows_count
         self.text_row_ends = -1
-        
+
         self.investigate()
         self.has_frame = self.detect_frame()
+        
+        # Rifine frame bottom border
+        if self.has_frame:
+            self.text_row_ends = max(self.text_row_ends, self.get_footer_start_row())
 
     def investigate(self):
         for i, row in enumerate(self.table.rows):
@@ -93,8 +99,16 @@ class TableHandler:
                         break
                 if rowspan > 1 or colspan > 1:
                     self.merged.add(cell._element)
-                cell_handler = CellHandler(cell, rowspan, colspan, j, i)
                 
+                cell_handler = CellHandler(
+                    cell=cell,
+                    rowspan=rowspan,
+                    colspan=colspan,
+                    x=j,
+                    y=i,
+                    height=sum(self.rows_heights[i: i + rowspan]),
+                    indent_top=sum(self.rows_heights[:i])
+                )
                 # Detect text (for frames) cell
                 cell_handler.is_text = cell_handler.width / self.src_page_width > self.text_cell_min_width
                 if cell_handler.is_text:
@@ -103,25 +117,52 @@ class TableHandler:
                     self.text_col_starts = min(self.text_col_starts, j)
                     self.text_col_ends = max(self.text_col_ends, j + colspan)
             
-                # cell_handler.ctext = f'DBG [COLS / MIN_COLS {len(self.table.columns)} / {self.min_frame_columns}; PAGE W = {self.src_page_width}; PAGE H = {self.src_page_height};TABLE W = {self.width}; TABLE H = {self.height}; XML W = {cell_handler.width}; TEXT = {cell_handler.is_text}; {(self.text_row_starts, self.text_row_ends, self.text_col_starts, self.text_col_ends)}, X = {cell_handler.x}: {cell_handler.colspan}, Y = {cell_handler.y}: {cell_handler.rowspan}]' + cell_handler.ctext
+                # cell_handler.ctext = (
+                #     f'DBG [COLS / MIN_COLS {len(self.table.columns)} / {self.min_frame_columns};'
+                #     ' PAGE W = {self.src_page_width};'
+                #     ' PAGE H = {self.src_page_height};'
+                #     'TABLE W = {self.width}; '
+                #     'TABLE H = {self.height}; '
+                #     'CELL W = {cell_handler.width}; '
+                #     'CELL H = {cell_handler.height}; '
+                #     'INDENT_TOP = {cell_handler.indent_top}; '
+                #     'IS TEXT = {cell_handler.is_text}; '
+                #     'FRAME {(self.text_row_starts, self.text_row_ends, self.text_col_starts, self.text_col_ends)}; '
+                #     'X = {cell_handler.x}: +{cell_handler.colspan}; '
+                #     'Y = {cell_handler.y}: +{cell_handler.rowspan}]'
+                #     + cell_handler.ctext
+                # )
                 cells.append(cell_handler)
             self.rows.append(cells)
 
     def detect_frame(self):
         # Table hight far from page height and page is portrait
-        if (self.height / self.src_page_height) < self.frame_table_min_hight \
-            and (self.width < self.src_page_width):
+        if (self.height / self.src_page_height) < self.frame_table_min_hight:
             return False
         # Table hcols count lower than min cols count in frame
         if self.cols_count < self.min_frame_columns:
             return False
         return self.text_row_starts >= 0
+    
+    def get_footer_start_row(self):
+        for row in self.rows:
+            try:
+                if (row[0].indent_top / self.src_page_height) > self.frame_footer_min_indent:
+                    return row[0].y
+            except IndexError:
+                continue
+        return 0
+                
 
     def get_table_height(self, xml):
-        try:
-            return sum([int(row['w:trPr']['w:trHeight']['@w:val']) for row in xml['w:tbl']['w:tr']])
-        except (KeyError, TypeError):
-            return 0
+        self.rows_heights = []
+        for row in xml['w:tbl']['w:tr']:
+            try:
+                row_height = int(row['w:trPr']['w:trHeight']['@w:val'])
+            except (KeyError, TypeError):
+                row_height = 0
+            self.rows_heights.append(row_height)
+        return sum(self.rows_heights)
 
     def get_table_width(self, xml):
         try:
@@ -131,7 +172,8 @@ class TableHandler:
 
         
 class CellHandler:
-    def __init__(self, cell, rowspan: int, colspan: int, x: int, y: int):
+    def __init__(self, cell, rowspan: int, colspan: int, x: int, y: int,
+                 height: int, indent_top: int):
         self.x = x
         self.y = y
         self.paragraphs = cell.paragraphs
@@ -140,6 +182,8 @@ class CellHandler:
             self.width = int(self.xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
         except KeyError:
             self.width = 0
+        self.height = height
+        self.indent_top = indent_top
         self.is_text = False
         self.rowspan = rowspan
         self.colspan = colspan
