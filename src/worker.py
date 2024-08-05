@@ -54,17 +54,17 @@ async def main():
                 exchange = channel.default_exchange
                 
                 queue_name = os.environ.get('CONVERTER_QUEUE', default='convert')
-                async with channel.declare_queue(queue_name) as queue:
-                    logger.info("Queue declared")
-                    
-                    logger.info("Waiting for tasks")
-                    async with queue.iterator() as iterator:
-                        async for message in iterator:
-                            try:
-                                async with message.process(requeue=False):
-                                    await process_message(message, exchange)
-                            except Exception as e:
-                                logger.exception(f"Processing error (correlation_id: {message.correlation_id})")
+                queue = channel.declare_queue(queue_name)
+                logger.info("Queue declared")
+                
+                logger.info("Waiting for tasks")
+                async with queue.iterator() as iterator:
+                    async for message in iterator:
+                        try:
+                            async with message.process(requeue=False):
+                                await process_message(message, exchange)
+                        except Exception as e:
+                            logger.exception(f"Processing error (correlation_id: {message.correlation_id})")
 
     except Exception as e:
         logger.exception("Main error")
