@@ -1,3 +1,4 @@
+import json
 import re
 from typing import List, Union
 import docx
@@ -84,7 +85,7 @@ class DocHandler:
             tuple: A tuple containing the title and anchor for the table.
         """
         regex_title = ' '.join(self.last_pars)
-        if 'таблица' in regex_title:
+        if 'таблица' in regex_title.lower():
             title = regex_title[regex_title.lower().rindex('таблица')]
         elif 'т а б л и ц а' in regex_title:
             title = regex_title[regex_title.lower().rindex('т а б л и ц а')]
