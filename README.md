@@ -15,7 +15,19 @@
    ```bash
    docker-compose up -d
    ```
-   
+
+4. Проверить работоспособность
+
+   Конвертация в HTML:
+   ```bash
+   curl -X POST localhost:5000 -H "Content-Type: multipart/form-data" -F "file=@src/test/docs_examples/doc_1.docx"
+   ```
+
+   Конвертация в JSON:
+   ```bash
+   curl -s -X POST localhost:8000 -H "Content-Type: multipart/form-data" -F "file=@src/test/docs_examples/doc_1.docx" | jq
+   ```
+
 Веб приложение будет доступно по адресу `http://localhost:5000`.
 
 # Модуль для парсинга .docx документов doc_parse
