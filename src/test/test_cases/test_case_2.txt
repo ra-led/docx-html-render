@@ -1,0 +1,5 @@
+Преобразование документа в JSON через API
+
+1. В терминале выполнить команду:
+   curl -s -X POST localhost:8000 -H "Content-Type: multipart/form-data" -F "file=@src/test/docs_examples/doc_1.docx" | jq
+   ОР: в ответ возвращен преобразованный документ в JSON формате
