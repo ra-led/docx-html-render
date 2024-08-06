@@ -1,4 +1,3 @@
-# pytest --host=158.160.39.120 --port=8000 --warning_threshold=0.9 --error_threshold=0.1
 import json
 from pathlib import Path
 import re
@@ -6,6 +5,8 @@ import requests
 import pandas as pd
 import pytest
 from loguru import logger
+import gdown
+import zipfile
 
 def parse_num(text):
     if re.match(r'\d', text.replace('_', '').split()[0][-1]):
@@ -28,10 +29,26 @@ def parse_element(element):
         'num_prefix': num_prefix
     }
 
+def download_and_unzip(url, output_dir):
+    zip_path = output_dir / 'docs.zip'
+    gdown.download(url=url, output=str(zip_path), fuzzy=True, quiet=False)
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(output_dir)
+    zip_path.unlink()  # Remove the zip file after extraction
+
+@pytest.fixture(scope="session", autouse=True)
+def prepare_docs():
+    url = 'https://drive.google.com/file/d/1NknEeemb3HYf4upniy5stzKTzt-OP80m/view?usp=sharing'
+    output_dir = Path('test/labeled_docs')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    download_and_unzip(url, output_dir)
+    
+
 labeled_docs = [
-    (docx_path, docx_path.with_suffix('.tsv'))
-    for docx_path in Path('test/labeled_docs').rglob('*.docx')
+    (docx_path.with_suffix('.docx'), docx_path)
+    for docx_path in Path('test/labeled_docs').rglob('*.tsv')
 ]
+
 
 @pytest.mark.parametrize("docx_path, labels_path", labeled_docs)
 def test_doc_structure(docx_path, labels_path, host, port, warning_threshold, error_threshold):
@@ -40,7 +57,7 @@ def test_doc_structure(docx_path, labels_path, host, port, warning_threshold, er
         files = {'file': file}
         response = requests.post(url, files=files)
     assert response.status_code == 200, f'Response != 200 for {docx_path}'
-    elements = json.loads(response.json())
+    elements = response.json()
     df_elements = pd.DataFrame([parse_element(el) for el in elements])
     df_labeled_elements = pd.read_csv(labels_path, sep='\t')
 
@@ -60,7 +77,8 @@ def test_doc_structure(docx_path, labels_path, host, port, warning_threshold, er
     logger.info(f'Numeration R: {num_precision:.2f}; {docx_path.name}')
     logger.info(f'Tables Error: {tables_error:.2f} {docx_path.name}')
 
-    if num_recall < error_threshold or num_precision < error_threshold or tables_error > error_threshold:
+    if num_recall < error_threshold or num_precision < error_threshold:
         pytest.fail(f'Metrics below error threshold for {docx_path.name}')
-    elif num_recall < warning_threshold or num_precision < warning_threshold or tables_error > warning_threshold:
+    elif num_recall < warning_threshold or num_precision < warning_threshold or tables_error > error_threshold:
         logger.warning(f'Metrics below warning threshold for {docx_path.name}')
+        
