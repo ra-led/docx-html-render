@@ -95,4 +95,4 @@ class ConverterProxy:
 
         logger.info(f"Received message with correlation_id: {message.correlation_id}")
         future: asyncio.Future = self.futures.pop(message.correlation_id)
-        future.set_result(message.body.decode())
+        future.set_result(message.body)

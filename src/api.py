@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 from typing import Annotated
@@ -54,7 +55,8 @@ def create_app():
     @app.post("/")
     async def root(file: Annotated[bytes, File()]):
         try:
-            return await app.converter.convert(file)
+            result = await app.converter.convert(file)
+            return json.loads(result.decode())
         except FuturesLimitReachedException:
             logger.error("Too many requests in progress, try later")
             raise HTTPException(status_code=429, detail='Too many requests in progress, try later')
