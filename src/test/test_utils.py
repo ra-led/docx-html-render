@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append('..')
 import contextlib
 import threading
 import time
@@ -11,7 +13,7 @@ from aio_pika import Message
 from aio_pika.exceptions import QueueEmpty
 from loguru import logger
 
-from ..utils import get_connection
+from utils import get_connection
 
 queue_name = os.environ.get('CONVERTER_QUEUE', default='convert')
 

@@ -49,7 +49,7 @@ class ParHandler:
 class TableHandler:
     def __init__(self, table: docx.table.Table, src_page_width: int, src_page_height: int,
                  text_cell_min_width: float = 0.8, frame_table_min_hight: float = 0.8,
-                 min_frame_columns: int = 7, frame_footer_min_indent: float = 0.82):
+                 min_frame_columns: int = 7, frame_footer_min_indent: float = 0.82, **kwargs):
         self.table = table
         self.xml = xmltodict.parse(table._element.xml, process_namespaces=False)
         self.height = self.get_table_height(self.xml)

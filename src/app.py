@@ -5,6 +5,7 @@ import traceback
 import docx
 from flask import Flask, render_template, request, redirect, send_file
 from doc_parse import DocHandler, DocHTML, DocJSON
+from doc_parse.conf import CONF
 
 
 def create_app():
@@ -26,7 +27,7 @@ def create_app():
                 file.save(temp_file.name)
                 
                 doc = docx.Document(temp_file.name)
-                handler = DocHandler(doc)
+                handler = DocHandler(doc, **CONF)
                 
                 # Convert to HTML
                 html_converter = DocHTML()

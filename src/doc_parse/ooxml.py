@@ -3,6 +3,7 @@ from typing import List, Union
 import docx
 from loguru import logger
 import xmltodict
+from .conf import CONF
 from .core import ParHandler, TableHandler, TableView, Node, DocRoot
 from .numbering import NumberingDB
 
@@ -13,7 +14,7 @@ class DocHandler:
     """
     def __init__(self, doc: docx.Document, default_width: int = 11907, default_height: int = 16840,
                  max_frame_space: int = 7, max_toc_pages: int = 10, max_doc_pages: int = 2000,
-                 avg_page_chars_count: int = 1200):
+                 avg_page_chars_count: int = 1200, **kwargs):
         """
         Initializes the DocHandler with a DOCX document.
         
@@ -137,7 +138,7 @@ class DocHandler:
         Returns:
             tuple: A tuple containing the HTML content and table of contents links.
         """
-        table = TableHandler(table, self.width, self.height)
+        table = TableHandler(table, self.width, self.height, **CONF)
         subtable = TableView(self.get_table_title())
         for i, row in enumerate(table.rows):
             if not any([cell.is_text for cell in row]):

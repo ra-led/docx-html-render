@@ -12,6 +12,7 @@ pandas
 pytest==8.2.2 
 pytest-asyncio==0.23.8
 pytest-retry==1.6.3
+pyyaml
 aspose-words==24.7.0
 torch==2.0.1
 transformers==4.42.4
