@@ -8,6 +8,7 @@ fastapi==0.111.0
 aio-pika==9.4.1
 python-multipart==0.0.9
 beautifulsoup4==4.12.3
+pandas
 pytest==8.2.2 
 pytest-asyncio==0.23.8
 pytest-retry==1.6.3
