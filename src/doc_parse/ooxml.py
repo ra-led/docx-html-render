@@ -86,9 +86,11 @@ class DocHandler:
         """
         regex_title = ' '.join(self.last_pars)
         if 'таблица' in regex_title.lower():
-            title = regex_title[regex_title.lower().rindex('таблица')]
+            start_idx = regex_title.lower().rindex('таблица')
+            title = regex_title[start_idx:]
         elif 'т а б л и ц а' in regex_title:
-            title = regex_title[regex_title.lower().rindex('т а б л и ц а')]
+            start_idx = regex_title.lower().rindex('т а б л и ц а')
+            title = regex_title[start_idx:]
         elif regex_title.strip():
             title = regex_title
         else:
