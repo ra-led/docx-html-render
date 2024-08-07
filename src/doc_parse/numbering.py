@@ -280,10 +280,16 @@ class NumberingDB:
             
     def link_nums_to_abstracts(self):
         try:
-            self.nums_to_abstarct = {
-                x['@w:numId']: x['w:abstractNumId']['@w:val']
-                for x in self.num_xml['w:numbering']['w:num']
-            }
+            nums_abs = self.num_xml['w:numbering']['w:num']
+            if type(nums_abs) is list:
+                self.nums_to_abstarct = {
+                    x['@w:numId']: x['w:abstractNumId']['@w:val']
+                    for x in nums_abs
+                }
+            elif type(nums_abs) is dict:
+                self.nums_to_abstarct = {
+                    nums_abs['@w:numId']: nums_abs['w:abstractNumId']['@w:val']
+                }
         except KeyError:
             self.nums_to_abstarct = {}
             
