@@ -71,19 +71,21 @@ class TableHandler:
         self.text_row_ends = -1
 
         self.investigate()
+        self.merge_no_border_cells()
+        self.detect_text_cells()
         self.has_frame = self.detect_frame()
         
         # Rifine frame bottom border
         if self.has_frame:
             self.text_row_ends = max(self.text_row_ends, self.get_footer_start_row())
-
+                
     def investigate(self):
         for i, row in enumerate(self.table.rows):
             cells = []
             for j, cell in enumerate(row.cells):
                 if cell._element in self.merged:
                     continue
-                
+
                 # Detect merged cells
                 rowspan = 1
                 colspan = 1
@@ -118,23 +120,72 @@ class TableHandler:
                     self.text_col_ends = max(self.text_col_ends, j + colspan)
             
                 # cell_handler.ctext = (
-                #     f'DBG [COLS / MIN_COLS {len(self.table.columns)} / {self.min_frame_columns};'
-                #     ' PAGE W = {self.src_page_width};'
-                #     ' PAGE H = {self.src_page_height};'
-                #     'TABLE W = {self.width}; '
-                #     'TABLE H = {self.height}; '
-                #     'CELL W = {cell_handler.width}; '
-                #     'CELL H = {cell_handler.height}; '
-                #     'INDENT_TOP = {cell_handler.indent_top}; '
-                #     'IS TEXT = {cell_handler.is_text}; '
-                #     'FRAME {(self.text_row_starts, self.text_row_ends, self.text_col_starts, self.text_col_ends)}; '
-                #     'X = {cell_handler.x}: +{cell_handler.colspan}; '
-                #     'Y = {cell_handler.y}: +{cell_handler.rowspan}]'
-                #     + cell_handler.ctext
-                # )
+                #         f'DBG [COLS / MIN_COLS {len(self.table.columns)} / {self.min_frame_columns};'
+                #         f' PAGE W = {self.src_page_width};'
+                #         f' PAGE H = {self.src_page_height};'
+                #         f'TABLE W = {self.width}; '
+                #         f'TABLE H = {self.height}; '
+                #         f'CELL W = {cell_handler.width}; '
+                #         f'CELL H = {cell_handler.height}; '
+                #         f'INDENT_TOP = {cell_handler.indent_top}; '
+                #         f'IS TEXT = {cell_handler.is_text}; '
+                #         f'FRAME {(self.text_row_starts, self.text_row_ends, self.text_col_starts, self.text_col_ends)}; '
+                #         f'X = {cell_handler.x}: +{cell_handler.colspan}; '
+                #         f'Y = {cell_handler.y}: +{cell_handler.rowspan}] '
+                #         f'BORDES = {get_cell_nil_borders(cell_handler.xml)} '
+                #         + cell_handler.ctext
+                #     )
                 cells.append(cell_handler)
             self.rows.append(cells)
+            
 
+    def merge_no_border_cells(self):
+        horizontal_merged_rows = []
+        for row in self.rows:
+            merged_row = row[:1]
+            for cell in row[1:]:
+                if 'left' in cell.no_borders and merged_row[-1].rowspan == cell.rowspan:
+                    merged_row[-1] = left_join_cells(merged_row[-1], cell)
+                else:
+                    merged_row.append(cell)
+            horizontal_merged_rows.append(merged_row)
+            
+        vertical_merged_rows = [
+            {(cell.x, cell.colspan): cell for cell in row}
+            for row in horizontal_merged_rows[:1]
+        ]
+        for row in horizontal_merged_rows[1:]:
+            new_row = {}
+            for cell in row:
+                try:
+                    if 'top' in cell.no_borders and \
+                        not vertical_merged_rows[-1][(cell.x, cell.colspan)].ctext:
+                        vertical_merged_rows[-1][(cell.x, cell.colspan)] = top_join_cells(
+                            vertical_merged_rows[-1][(cell.x, cell.colspan)],
+                            cell
+                        )
+                    else:
+                        new_row[(cell.x, cell.colspan)] = cell
+                except KeyError:
+                    new_row[(cell.x, cell.colspan)] = cell
+            if new_row:
+                vertical_merged_rows.append(new_row)
+        
+        self.rows = [
+            [cell for _, cell in row.items()]
+            for row in vertical_merged_rows
+        ]
+
+    def detect_text_cells(self):
+        for row in self.rows:
+            for cell in row:
+                cell.is_text = cell.width / self.src_page_width > self.text_cell_min_width
+                if cell.is_text:
+                    self.text_row_starts = min(self.text_row_starts, cell.y)
+                    self.text_row_ends = max(self.text_row_ends, cell.y + cell.rowspan)
+                    self.text_col_starts = min(self.text_col_starts, cell.x)
+                    self.text_col_ends = max(self.text_col_ends, cell.x + cell.colspan)
+            
     def detect_frame(self):
         # Table hight far from page height and page is portrait
         if (self.height / self.src_page_height) < self.frame_table_min_hight:
@@ -177,9 +228,10 @@ class CellHandler:
         self.x = x
         self.y = y
         self.paragraphs = cell.paragraphs
+        self.width = 0
         self.xml = xmltodict.parse(cell._element.xml, process_namespaces=False)
         try:
-            self.width = int(self.xml['w:tc']['w:tcPr']['w:tcW']['@w:w'])
+            self.width = int(self.xml ['w:tc']['w:tcPr']['w:tcW']['@w:w'])
         except KeyError:
             self.width = 0
         self.height = height
@@ -187,7 +239,11 @@ class CellHandler:
         self.is_text = False
         self.rowspan = rowspan
         self.colspan = colspan
-        self.ctext = '\n'.join([c_par.text.strip() for c_par in self.paragraphs]).strip()
+        self.no_borders = get_cell_nil_borders(self.xml)
+        
+    @property
+    def ctext(self):
+        return '\n'.join([c_par.text.strip() for c_par in self.paragraphs]).strip()
         
         
 class TableView:
@@ -222,3 +278,34 @@ class DocRoot(ParHandler):
         self.node = Node('[Начало документа]', 1, 'ROOT')
         self.node._id = 'default-start-doc'
         self.ctext = ''
+
+
+def left_join_cells(cell_1: CellHandler, cell_2: CellHandler):
+    cell_1.paragraphs += cell_2.paragraphs
+    cell_1.no_borders = cell_1.no_borders.union(cell_2.no_borders)
+    cell_1.is_text = any([cell_1.is_text, cell_2.is_text])
+    cell_1.colspan += cell_2.colspan
+    cell_1.width += cell_2.width
+    return cell_1
+
+
+def top_join_cells(cell_1: CellHandler, cell_2: CellHandler):
+    cell_1.paragraphs += cell_2.paragraphs
+    cell_1.no_borders = cell_1.no_borders.union(cell_2.no_borders)
+    cell_1.is_text = any([cell_1.is_text, cell_2.is_text])
+    cell_1.rowspan += cell_2.rowspan
+    cell_1.height += cell_2.height
+    cell_1.indent_top = max(cell_1.indent_top, cell_2.indent_top)
+    return cell_1
+
+
+def get_cell_nil_borders(c_xml):
+    cell_borders = c_xml['w:tc']['w:tcPr'].get('w:tcBorders', {})
+    nil_borders = []
+    for side in ['top', 'bottom', 'left', 'right']:
+        try:
+            if cell_borders['w:' + side]['@w:val'] == 'nil':
+                nil_borders.append(side)
+        except KeyError:
+            continue
+    return set(nil_borders)
