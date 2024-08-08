@@ -283,8 +283,7 @@ json_content = json_converter.get_json(handler)
 - **`numerize_by_appendix`**:
   - Определяет, является ли параграф заголовком приложения.
 
-## Обработка таблиц
-Давайте разберем, как происходит обработка таблиц в методе `DocHandler.process_table` с использованием классов `TableHandler` и `TableView`.
+## Обработка таблиц с использованием классов `TableHandler` и `TableView`.
 
 ### 1. Инициализация `TableHandler`
 
