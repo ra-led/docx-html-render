@@ -10,6 +10,7 @@
    ```bash
    docker build -t doc-parse:latest ./src
    ```
+   **Примечание**: во время сборки модели классификаторов [загружаются](https://github.com/ra-led/docx-html-render/blob/main/src/Dockerfile#L14-L18) из Google Drive и сохраняются в образе контейнера.
 
 3. Запустить полный стэк сервисов:
    ```bash
