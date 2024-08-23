@@ -36,9 +36,6 @@ services:
       - 8000:8000
     environment: 
       <<: [*rabbit-env, *converter-env]
-    volumes:
-     - app.log:/src/app.log
-     - errors.log:/src/errors.log
     depends_on:
       - rabbitmq
 
