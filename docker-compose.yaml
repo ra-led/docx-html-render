@@ -35,7 +35,7 @@ services:
     ports:
       - 8000:8000
     volumes:
-      - logs/:logs/
+      - ./logs/:/src/logs/
     environment: 
       <<: [*rabbit-env, *converter-env]
     depends_on:
@@ -57,3 +57,4 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: *rabbit-user
       RABBITMQ_DEFAULT_PASS: *rabbit-pass
+
