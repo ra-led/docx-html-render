@@ -17,6 +17,10 @@ RUN python3 -m gdown https://drive.google.com/uc?id=1vuVVl11N93AGKtCW7KxXxFcBh60
 RUN apt install unzip
 RUN unzip model_dir.zip
 
+# Custom callback
+COPY doc_parse/override/requirements.txt custom_requirements.txt
+RUN pip install --no-cache-dir -r custom_requirements.txt
+
 # Documentation
 # RUN pip install sphinx sphinx-autodoc
 # RUN make -C docs html
