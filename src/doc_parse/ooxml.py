@@ -13,7 +13,7 @@ class DocHandler:
     Handles the conversion of DOCX document content to HTML.
     """
     def __init__(self, doc: docx.Document, default_width: int = 11907, default_height: int = 16840,
-                 max_frame_space: int = 7, max_toc_pages: int = 10, max_doc_pages: int = 2000,
+                 max_toc_pages: int = 10, max_doc_pages: int = 2000,
                  avg_page_chars_count: int = 1200, **kwargs):
         """
         Initializes the DocHandler with a DOCX document.
@@ -39,7 +39,6 @@ class DocHandler:
         except KeyError:
             self.height = default_height
 
-        self.max_frame_space = max_frame_space
         self.max_toc_pages = max_toc_pages
         self.max_doc_pages = max_doc_pages
         self.avg_page_chars_count = avg_page_chars_count
