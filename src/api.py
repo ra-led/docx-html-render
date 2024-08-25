@@ -40,9 +40,9 @@ def setup_logging():
         "sink": sys.stdout, "level": logging.getLevelName(logging.root.level)
     }])
     # Rotates the log file when it reaches 500 MB
-    logger.add("app.log", rotation="500 MB")
+    logger.add("logs/app.log", rotation="500 MB")
     # Logs errors and above to a separate file
-    logger.add("errors.log", level="ERROR")
+    logger.add("logs/errors.log", level="ERROR")
 
 
 def create_app():
