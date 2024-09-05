@@ -1,8 +1,11 @@
+import os
 from collections import defaultdict
 import json
 from typing import List, Union
+from override.callbacks import custom_callback
 from .core import ParHandler, TableView, DocRoot
 from .ooxml import DocHandler
+
 
 class DocJSON:
     def __init__(self):
@@ -99,7 +102,21 @@ class DocJSON:
                 self.paragraph_json(content)
             elif type(content) is TableView:
                 self.table_json(content)
-        return json.dumps(self.elements, ensure_ascii=False)
+
+        # POSTPROCESS WITH CUSTOM CALLBACK
+        processed_elements = []
+        for element in self.elements:
+            action, updated_element = custom_callback(element)
+            if action == 'pass':
+                processed_elements.append(element)
+            elif action == 'update':
+                processed_elements.append(updated_element)
+            elif action == 'remove':
+                continue
+            else:
+                raise ValueError(f'Recieved invalid action "{action}"')
+            
+        return json.dumps(processed_elements, ensure_ascii=False)
             
 
 def make_title(text: str, max_len: int = 35) -> str:
